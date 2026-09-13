@@ -1,0 +1,15 @@
+{
+  "name": "sistema-evolucao-lideres-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend do Sistema de Evolução de Líderes (JR Telecom) — Express + SQLite (node:sqlite)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --no-warnings server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.18.1",
+    "google-auth-library": "^11.0.2"
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+backend/.env
+dados.db
+dados.db-wal
+dados.db-shm
+backend/uploads/
