@@ -1,15 +1,15 @@
 /* Sistema de Evolução de Líderes — JR Telecom
- * Backend: Express + SQLite (node:sqlite, nativo do Node, sem dependência externa de banco).
- * Banco de dados físico: ..\dados.db (pasta "E:\sistema evolução de lideres", ao lado desta pasta backend).
+ * Backend: Express + Supabase (Postgres via PostgREST + Storage) — funciona local e em serverless (Vercel).
  */
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const express = require('express');
-const session = require('express-session');
-const { DatabaseSync } = require('node:sqlite');
+const { createClient } = require('@supabase/supabase-js');
 const { GoogleAuth } = require('google-auth-library');
 
-/* Carregador mínimo de .env (sem dependência de pacote "dotenv") — lê backend/.env se existir. */
+/* Carregador mínimo de .env (sem dependência de pacote "dotenv") — lê backend/.env se existir.
+   Na Vercel não existe esse arquivo; as variáveis vêm configuradas direto na plataforma. */
 (function carregarEnv(){
   const caminho = path.join(__dirname, '.env');
   if(!fs.existsSync(caminho)) return;
@@ -23,70 +23,74 @@ const { GoogleAuth } = require('google-auth-library');
   });
 })();
 
-const PORTA = 3800;
-const DB_PATH = path.join(__dirname, '..', 'dados.db');
+const PORTA = process.env.PORT || 3800;
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-const FOTOS_DIR = path.join(UPLOADS_DIR, 'fotos');
-fs.mkdirSync(FOTOS_DIR, { recursive: true });
+const BUCKET_FOTOS = 'fotos';
 
-const USUARIO = 'admin';
-const SENHA = 'bezerra01';
+const USUARIO = process.env.ADMIN_USUARIO;
+const SENHA = process.env.ADMIN_SENHA;
+const SESSION_SECRET = process.env.SESSION_SECRET;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+[
+  ['ADMIN_USUARIO', USUARIO], ['ADMIN_SENHA', SENHA], ['SESSION_SECRET', SESSION_SECRET],
+  ['SUPABASE_URL', SUPABASE_URL], ['SUPABASE_SERVICE_ROLE_KEY', SUPABASE_SERVICE_ROLE_KEY]
+].forEach(([nome,valor])=>{
+  if(!valor){
+    console.error('ERRO: defina '+nome+' no backend/.env (local) ou nas variáveis de ambiente da plataforma (produção) antes de iniciar o servidor.');
+    process.exit(1);
+  }
+});
 
-/* ---------------- BANCO DE DADOS ---------------- */
-const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL;');
-db.exec(`
-CREATE TABLE IF NOT EXISTS lideres (
-  id TEXT PRIMARY KEY,
-  nome TEXT NOT NULL,
-  equipe TEXT,
-  qtd TEXT,
-  foto TEXT,
-  funcao TEXT
-);
-CREATE TABLE IF NOT EXISTS avaliacoes_notas (
-  lider_id TEXT NOT NULL,
-  mes TEXT NOT NULL,
-  indicador TEXT NOT NULL,
-  gestor REAL,
-  auto REAL,
-  PRIMARY KEY (lider_id, mes, indicador)
-);
-CREATE TABLE IF NOT EXISTS avaliacoes_meta (
-  lider_id TEXT NOT NULL,
-  mes TEXT NOT NULL,
-  forte TEXT, melhorar TEXT, meta TEXT, obs TEXT,
-  PRIMARY KEY (lider_id, mes)
-);
-CREATE TABLE IF NOT EXISTS pdi_notas (
-  lider_id TEXT NOT NULL,
-  mes TEXT NOT NULL,
-  criterio TEXT NOT NULL,
-  gestor REAL,
-  auto REAL,
-  PRIMARY KEY (lider_id, mes, criterio)
-);
-CREATE TABLE IF NOT EXISTS pdi_meta (
-  lider_id TEXT NOT NULL,
-  mes TEXT NOT NULL,
-  fortes TEXT, desenvolver TEXT, acoes TEXT, revisao TEXT, compromisso TEXT,
-  PRIMARY KEY (lider_id, mes)
-);
-CREATE TABLE IF NOT EXISTS semanal (
-  lider_id TEXT NOT NULL,
-  mes TEXT NOT NULL,
-  semana INTEGER NOT NULL,
-  travou TEXT, decisao TEXT, compromisso TEXT, ok INTEGER,
-  PRIMARY KEY (lider_id, mes, semana)
-);
-CREATE TABLE IF NOT EXISTS meta (
-  chave TEXT PRIMARY KEY,
-  valor TEXT
-);
-`);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession:false } });
 
-/* ---------------- SEED (só roda uma vez, se o banco nascer vazio) ---------------- */
+/* ---------------- AUTENTICAÇÃO: cookie assinado, sem estado no servidor ----------------
+   Substitui express-session (MemoryStore) porque serverless (Vercel) não tem processo
+   contínuo nem memória compartilhada entre instâncias — um cookie assinado (HMAC) resolve
+   isso sem precisar de tabela de sessão nem de outro serviço. */
+const DURACAO_SESSAO_MS = 1000*60*60*12; // 12h
+function assinar(valor){
+  return crypto.createHmac('sha256', SESSION_SECRET).update(valor).digest('base64url');
+}
+function criarTokenAuth(){
+  const payload = Buffer.from(JSON.stringify({ autenticado:true, exp: Date.now()+DURACAO_SESSAO_MS })).toString('base64url');
+  return payload+'.'+assinar(payload);
+}
+function tokenValido(token){
+  if(!token) return false;
+  const [payload, assinatura] = token.split('.');
+  if(!payload || !assinatura) return false;
+  const esperada = assinar(payload);
+  if(assinatura.length !== esperada.length) return false;
+  if(!crypto.timingSafeEqual(Buffer.from(assinatura), Buffer.from(esperada))) return false;
+  try{
+    const dados = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return !!dados.autenticado && dados.exp > Date.now();
+  }catch(e){ return false; }
+}
+function lerCookies(req){
+  const cabecalho = req.headers.cookie || '';
+  const mapa = {};
+  cabecalho.split(';').forEach(par=>{
+    const idx = par.indexOf('=');
+    if(idx===-1) return;
+    mapa[par.slice(0,idx).trim()] = decodeURIComponent(par.slice(idx+1).trim());
+  });
+  return mapa;
+}
+function montarSetCookie(nome, valor, maxAgeSeg){
+  const PRODUCAO = process.env.NODE_ENV === 'production';
+  let s = nome+'='+encodeURIComponent(valor)+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+maxAgeSeg;
+  if(PRODUCAO) s += '; Secure';
+  return s;
+}
+function exigirLogin(req, res, next){
+  const cookies = lerCookies(req);
+  if(tokenValido(cookies.sel_auth)) return next();
+  res.status(401).json({ erro: 'Não autenticado.' });
+}
+
+/* ---------------- SEED (só roda se o banco nascer vazio) ---------------- */
 const SEED_LIDERES = [
   {id:'L01', nome:'Adricelio Passos dos Santos',          equipe:'Interior — S.R. Nonato, Casa Nova, Sobradinho, Remanso, Santana do Sobrado, Campo Alegre, Petrolina', qtd:'20'},
   {id:'L02', nome:'Andre Alisson da Cruz Santos',         equipe:'Petrolina — Analista Técnico (coordena os 7 líderes) + 3 técnicos diretos', qtd:'3'},
@@ -181,76 +185,9 @@ const IMPORT_AVAL = [
 {lid:'L08',mes:'2026-07',notas:{rela:99.35,orga:100.0,comp:100.0,comu:100.0,prod:96.77,vist:100.0,equi:100.0,proc:100.0,pont:99.19}}
 ];
 
-/* Migração leve: adiciona colunas em bancos criados antes delas existirem. */
-(function migrarColunasLideres(){
-  const colunas = db.prepare("PRAGMA table_info(lideres)").all().map(c => c.name);
-  if(!colunas.includes('foto')){
-    db.exec('ALTER TABLE lideres ADD COLUMN foto TEXT');
-  }
-  if(!colunas.includes('funcao')){
-    db.exec('ALTER TABLE lideres ADD COLUMN funcao TEXT');
-  }
-})();
-
-function contarLideres(){
-  return db.prepare('SELECT COUNT(*) AS n FROM lideres').get().n;
-}
-function rodarSeedInicial(){
-  const insLider = db.prepare('INSERT INTO lideres (id,nome,equipe,qtd) VALUES (?,?,?,?)');
-  db.exec('BEGIN');
-  try{
-    SEED_LIDERES.forEach(l => insLider.run(l.id, l.nome, l.equipe, l.qtd));
-    db.exec('COMMIT');
-  }catch(e){ db.exec('ROLLBACK'); throw e; }
-  aplicarHistoricoMonitoramento();
-  setMetaValor('avalImportado', '1');
-}
-
-/* Preenche só o que estiver vazio (não sobrescreve nota já lançada manualmente) — mesmo comportamento
-   da função importarAvalHistorico() que existia no front antigo. */
-function aplicarHistoricoMonitoramento(){
-  const lideresExistentes = new Set(db.prepare('SELECT id FROM lideres').all().map(r=>r.id));
-  const getNota = db.prepare('SELECT gestor FROM avaliacoes_notas WHERE lider_id=? AND mes=? AND indicador=?');
-  const insNota = db.prepare('INSERT INTO avaliacoes_notas (lider_id,mes,indicador,gestor,auto) VALUES (?,?,?,?,NULL)');
-  const updNota = db.prepare('UPDATE avaliacoes_notas SET gestor=? WHERE lider_id=? AND mes=? AND indicador=?');
-  const garantirMeta = db.prepare(`INSERT INTO avaliacoes_meta (lider_id,mes,forte,melhorar,meta,obs)
-    SELECT ?,?,'','','','' WHERE NOT EXISTS (SELECT 1 FROM avaliacoes_meta WHERE lider_id=? AND mes=?)`);
-  let novos=0, atualizados=0;
-  db.exec('BEGIN');
-  try{
-    IMPORT_AVAL.forEach(rec=>{
-      if(!lideresExistentes.has(rec.lid)) return;
-      let mudouEsteMes=false;
-      const existiaMeta = db.prepare('SELECT 1 FROM avaliacoes_meta WHERE lider_id=? AND mes=?').get(rec.lid, rec.mes);
-      Object.entries(rec.notas).forEach(([ind,val])=>{
-        const atual = getNota.get(rec.lid, rec.mes, ind);
-        if(!atual){ insNota.run(rec.lid, rec.mes, ind, val); mudouEsteMes=true; }
-        else if(atual.gestor==null){ updNota.run(val, rec.lid, rec.mes, ind); mudouEsteMes=true; }
-      });
-      garantirMeta.run(rec.lid, rec.mes, rec.lid, rec.mes);
-      if(mudouEsteMes){ if(existiaMeta) atualizados++; else novos++; }
-    });
-    db.exec('COMMIT');
-  }catch(e){ db.exec('ROLLBACK'); throw e; }
-  return {novos, atualizados};
-}
-function getMetaValor(chave){
-  const r = db.prepare('SELECT valor FROM meta WHERE chave=?').get(chave);
-  return r ? r.valor : null;
-}
-function setMetaValor(chave, valor){
-  db.prepare(`INSERT INTO meta (chave,valor) VALUES (?,?) ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor`).run(chave, valor);
-}
-
-if(contarLideres()===0){
-  console.log('Banco novo — aplicando cadastro inicial dos 8 líderes e histórico da planilha de Monitoramento...');
-  rodarSeedInicial();
-}
-
-/* ---------------- INTEGRAÇÃO AO VIVO COM A PLANILHA GOOGLE (aba "Técnicos de Monitoramento") ----------------
+/* ---------------- SINCRONIZAÇÃO AO VIVO COM A PLANILHA GOOGLE (aba "Técnicos de Monitoramento") ----------------
    Lida via API Sheets v4 com Service Account (escopo readonly) — a planilha NÃO precisa ser pública,
-   só compartilhada como "Leitor" com o client_email de GOOGLE_SERVICE_ACCOUNT_JSON (backend/.env).
-   https://docs.google.com/spreadsheets/d/1szO-QkDju6DGtFSgLwvHoioO5hbN93uowlc0lu4ZqcM/edit?gid=1442813401 */
+   só compartilhada como "Leitor" com o client_email de GOOGLE_SERVICE_ACCOUNT_JSON. */
 const PLANILHA_MONITORAMENTO_ID = '1szO-QkDju6DGtFSgLwvHoioO5hbN93uowlc0lu4ZqcM';
 const PLANILHA_MONITORAMENTO_ABA = 'Técnicos de Monitoramento';
 const MAPA_COLUNAS_PLANILHA = {
@@ -275,7 +212,7 @@ function parsePercentualBR(v){
 }
 function credenciaisServiceAccount(){
   const bruto = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if(!bruto) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurado em backend/.env — sem credencial não dá pra ler a planilha.');
+  if(!bruto) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurado — sem credencial não dá pra ler a planilha.');
   const credenciais = JSON.parse(bruto);
   if(credenciais.private_key) credenciais.private_key = credenciais.private_key.replace(/\\n/g, '\n');
   return credenciais;
@@ -312,176 +249,188 @@ async function buscarLinhasPlanilhaMonitoramento(){
 }
 async function sincronizarPlanilhaMonitoramento(){
   const linhas = await buscarLinhasPlanilhaMonitoramento();
-  const mapaPorNome = new Map(db.prepare('SELECT id,nome FROM lideres').all().map(l => [normalizarNome(l.nome), l.id]));
-  const upsertNota = db.prepare(`INSERT INTO avaliacoes_notas (lider_id,mes,indicador,gestor,auto) VALUES (?,?,?,?,NULL)
-    ON CONFLICT(lider_id,mes,indicador) DO UPDATE SET gestor=excluded.gestor`);
-  const garantirMeta = db.prepare(`INSERT INTO avaliacoes_meta (lider_id,mes,forte,melhorar,meta,obs)
-    SELECT ?,?,'','','','' WHERE NOT EXISTS (SELECT 1 FROM avaliacoes_meta WHERE lider_id=? AND mes=?)`);
-  const atualizarFuncao = db.prepare('UPDATE lideres SET funcao=? WHERE id=?');
+  const { data: lideresAtuais, error: erroLideres } = await supabase.from('lideres').select('id,nome');
+  if(erroLideres) throw erroLideres;
+  const mapaPorNome = new Map((lideresAtuais||[]).map(l => [normalizarNome(l.nome), l.id]));
   let linhasAplicadas=0, ignoradas=0;
   const mesesLideresAtingidos = new Set();
-  db.exec('BEGIN');
-  try{
-    linhas.forEach(row=>{
-      const nomeCel = row['TEC DE MONITORAMENTO'];
-      const dataCel = row['DATA'];
-      if(!nomeCel || !dataCel){ return; }
-      const lid = mapaPorNome.get(normalizarNome(nomeCel));
-      if(!lid){ ignoradas++; return; }
-      const partes = dataCel.split('/');
-      if(partes.length !== 3) return;
-      const mes = partes[2] + '-' + partes[1].padStart(2,'0');
-      let mudou = false;
-      Object.entries(MAPA_COLUNAS_PLANILHA).forEach(([coluna,indicador])=>{
-        const valor = parsePercentualBR(row[coluna]);
-        if(valor==null) return;
-        upsertNota.run(lid, mes, indicador, valor);
-        mudou = true;
-      });
-      if(row['FUNÇÃO'] && row['FUNÇÃO'].trim()) atualizarFuncao.run(row['FUNÇÃO'].trim(), lid);
-      if(mudou){
-        garantirMeta.run(lid, mes, lid, mes);
-        mesesLideresAtingidos.add(lid+'|'+mes);
-        linhasAplicadas++;
+  for(const row of linhas){
+    const nomeCel = row['TEC DE MONITORAMENTO'];
+    const dataCel = row['DATA'];
+    if(!nomeCel || !dataCel) continue;
+    const lid = mapaPorNome.get(normalizarNome(nomeCel));
+    if(!lid){ ignoradas++; continue; }
+    const partes = dataCel.split('/');
+    if(partes.length !== 3) continue;
+    const mes = partes[2] + '-' + partes[1].padStart(2,'0');
+    let mudou = false;
+    for(const [coluna,indicador] of Object.entries(MAPA_COLUNAS_PLANILHA)){
+      const valor = parsePercentualBR(row[coluna]);
+      if(valor==null) continue;
+      const { error } = await supabase.rpc('upsert_nota_gestor', { p_lider_id: lid, p_mes: mes, p_indicador: indicador, p_gestor: valor });
+      if(error) throw error;
+      mudou = true;
+    }
+    if(row['FUNÇÃO'] && row['FUNÇÃO'].trim()){
+      await supabase.from('lideres').update({ funcao: row['FUNÇÃO'].trim() }).eq('id', lid);
+    }
+    if(mudou){
+      const { data: metaExistente } = await supabase.from('avaliacoes_meta').select('lider_id').eq('lider_id',lid).eq('mes',mes).maybeSingle();
+      if(!metaExistente){
+        await supabase.from('avaliacoes_meta').insert({ lider_id:lid, mes, forte:'', melhorar:'', meta:'', obs:'' });
       }
-    });
-    db.exec('COMMIT');
-  }catch(e){ db.exec('ROLLBACK'); throw e; }
+      mesesLideresAtingidos.add(lid+'|'+mes);
+      linhasAplicadas++;
+    }
+  }
   return { linhasAplicadas, mesesAtingidos: mesesLideresAtingidos.size, ignoradas };
 }
 
+/* Preenche só o que estiver vazio (não sobrescreve nota já lançada manualmente) — mesmo comportamento
+   da versão anterior (SQLite). Só roda no seed inicial (banco vazio) ou pelo botão "Importar histórico". */
+async function aplicarHistoricoMonitoramento(){
+  const { data: lideresAtuais } = await supabase.from('lideres').select('id');
+  const idsExistentes = new Set((lideresAtuais||[]).map(r=>r.id));
+  let novos=0, atualizados=0;
+  for(const rec of IMPORT_AVAL){
+    if(!idsExistentes.has(rec.lid)) continue;
+    let mudouEsteMes=false;
+    const { data: metaExistente } = await supabase.from('avaliacoes_meta').select('lider_id').eq('lider_id',rec.lid).eq('mes',rec.mes).maybeSingle();
+    for(const [ind,val] of Object.entries(rec.notas)){
+      const { data: atual } = await supabase.from('avaliacoes_notas').select('gestor').eq('lider_id',rec.lid).eq('mes',rec.mes).eq('indicador',ind).maybeSingle();
+      if(!atual){
+        await supabase.from('avaliacoes_notas').insert({ lider_id:rec.lid, mes:rec.mes, indicador:ind, gestor:val, auto:null });
+        mudouEsteMes=true;
+      } else if(atual.gestor==null){
+        await supabase.from('avaliacoes_notas').update({ gestor:val }).eq('lider_id',rec.lid).eq('mes',rec.mes).eq('indicador',ind);
+        mudouEsteMes=true;
+      }
+    }
+    if(!metaExistente){
+      await supabase.from('avaliacoes_meta').insert({ lider_id:rec.lid, mes:rec.mes, forte:'', melhorar:'', meta:'', obs:'' });
+    }
+    if(mudouEsteMes){ if(metaExistente) atualizados++; else novos++; }
+  }
+  return {novos, atualizados};
+}
+
+async function rodarSeedInicial(){
+  const { error } = await supabase.from('lideres').insert(SEED_LIDERES.map(l=>({ id:l.id, nome:l.nome, equipe:l.equipe, qtd:l.qtd })));
+  if(error) throw error;
+  await aplicarHistoricoMonitoramento();
+  await supabase.rpc('upsert_meta_valor', { p_chave:'avalImportado', p_valor:'1' });
+}
+
 /* ---------------- ESTADO: monta/desmonta o objeto que o front-end usa ---------------- */
-function montarEstado(){
-  const lideres = db.prepare('SELECT * FROM lideres ORDER BY nome').all();
+async function montarEstado(){
+  const [lideresR, notasAvalR, metaAvalR, notasPdiR, metaPdiR, semanalR, metaR] = await Promise.all([
+    supabase.from('lideres').select('*').order('nome'),
+    supabase.from('avaliacoes_notas').select('*'),
+    supabase.from('avaliacoes_meta').select('*'),
+    supabase.from('pdi_notas').select('*'),
+    supabase.from('pdi_meta').select('*'),
+    supabase.from('semanal').select('*'),
+    supabase.from('meta').select('*'),
+  ]);
+  for(const r of [lideresR, notasAvalR, metaAvalR, notasPdiR, metaPdiR, semanalR, metaR]){
+    if(r.error) throw r.error;
+  }
   const aval = {};
-  db.prepare('SELECT * FROM avaliacoes_notas').all().forEach(row=>{
+  (notasAvalR.data||[]).forEach(row=>{
     const k = row.lider_id+'|'+row.mes;
     aval[k] = aval[k] || {notas:{}, auto:{}, forte:'', melhorar:'', meta:'', obs:''};
     if(row.gestor!=null) aval[k].notas[row.indicador]=row.gestor;
     if(row.auto!=null) aval[k].auto[row.indicador]=row.auto;
   });
-  db.prepare('SELECT * FROM avaliacoes_meta').all().forEach(row=>{
+  (metaAvalR.data||[]).forEach(row=>{
     const k = row.lider_id+'|'+row.mes;
     aval[k] = aval[k] || {notas:{}, auto:{}};
     aval[k].forte=row.forte||''; aval[k].melhorar=row.melhorar||''; aval[k].meta=row.meta||''; aval[k].obs=row.obs||'';
   });
   const pdi = {};
-  db.prepare('SELECT * FROM pdi_notas').all().forEach(row=>{
+  (notasPdiR.data||[]).forEach(row=>{
     const k = row.lider_id+'|'+row.mes;
     pdi[k] = pdi[k] || {notas:{}, auto:{}, acoes:[{},{},{}]};
     if(row.gestor!=null) pdi[k].notas[row.criterio]=row.gestor;
     if(row.auto!=null) pdi[k].auto[row.criterio]=row.auto;
   });
-  db.prepare('SELECT * FROM pdi_meta').all().forEach(row=>{
+  (metaPdiR.data||[]).forEach(row=>{
     const k = row.lider_id+'|'+row.mes;
     pdi[k] = pdi[k] || {notas:{}, auto:{}};
     pdi[k].fortes=row.fortes||''; pdi[k].desenvolver=row.desenvolver||'';
-    pdi[k].acoes = row.acoes ? JSON.parse(row.acoes) : [{},{},{}];
+    pdi[k].acoes = row.acoes || [{},{},{}];
     pdi[k].revisao=row.revisao||''; pdi[k].compromisso=row.compromisso||'';
   });
   const sem = {};
-  db.prepare('SELECT * FROM semanal').all().forEach(row=>{
+  (semanalR.data||[]).forEach(row=>{
     const k = row.lider_id+'|'+row.mes;
     sem[k] = sem[k] || {};
     sem[k]['s'+row.semana] = {travou:row.travou||'', decisao:row.decisao||'', compromisso:row.compromisso||'', ok: !!row.ok};
   });
-  return { lideres, aval, sem, pdi, avalImportado: getMetaValor('avalImportado')==='1', pctV2:true };
+  const metaMap = {};
+  (metaR.data||[]).forEach(r=> metaMap[r.chave]=r.valor);
+  return { lideres: lideresR.data||[], aval, sem, pdi, avalImportado: metaMap.avalImportado==='1', pctV2:true };
 }
 
-function salvarEstado(d){
-  const idsAntigos = db.prepare('SELECT id FROM lideres').all().map(r=>r.id);
-  const idsNovos = new Set((d.lideres||[]).map(l=>l.id));
-  idsAntigos.filter(id => !idsNovos.has(id)).forEach(id => removerFotosAntigas(id));
-  db.exec('BEGIN');
-  try{
-    db.exec('DELETE FROM lideres'); db.exec('DELETE FROM avaliacoes_notas'); db.exec('DELETE FROM avaliacoes_meta');
-    db.exec('DELETE FROM pdi_notas'); db.exec('DELETE FROM pdi_meta'); db.exec('DELETE FROM semanal');
+/* Delete-all + insert-all de tudo, numa única transação de banco (função Postgres `salvar_estado`)
+   — garante que nunca fica um estado "pela metade" mesmo se a requisição cair no meio. */
+async function salvarEstado(d){
+  const { error } = await supabase.rpc('salvar_estado', { payload: d });
+  if(error) throw error;
+}
 
-    const insLider = db.prepare('INSERT INTO lideres (id,nome,equipe,qtd,foto,funcao) VALUES (?,?,?,?,?,?)');
-    (d.lideres||[]).forEach(l => insLider.run(l.id, l.nome, l.equipe||'', String(l.qtd??''), l.foto||null, l.funcao||null));
-
-    const insNota = db.prepare('INSERT INTO avaliacoes_notas (lider_id,mes,indicador,gestor,auto) VALUES (?,?,?,?,?)');
-    const insAvalMeta = db.prepare('INSERT INTO avaliacoes_meta (lider_id,mes,forte,melhorar,meta,obs) VALUES (?,?,?,?,?,?)');
-    Object.entries(d.aval||{}).forEach(([k,v])=>{
-      const [lid,mes]=k.split('|');
-      const inds = new Set([...Object.keys(v.notas||{}), ...Object.keys(v.auto||{})]);
-      inds.forEach(ind => insNota.run(lid,mes,ind, (v.notas||{})[ind] ?? null, (v.auto||{})[ind] ?? null));
-      insAvalMeta.run(lid, mes, v.forte||'', v.melhorar||'', v.meta||'', v.obs||'');
-    });
-
-    const insPdiNota = db.prepare('INSERT INTO pdi_notas (lider_id,mes,criterio,gestor,auto) VALUES (?,?,?,?,?)');
-    const insPdiMeta = db.prepare('INSERT INTO pdi_meta (lider_id,mes,fortes,desenvolver,acoes,revisao,compromisso) VALUES (?,?,?,?,?,?,?)');
-    Object.entries(d.pdi||{}).forEach(([k,v])=>{
-      const [lid,mes]=k.split('|');
-      const crits = new Set([...Object.keys(v.notas||{}), ...Object.keys(v.auto||{})]);
-      crits.forEach(c => insPdiNota.run(lid,mes,c, (v.notas||{})[c] ?? null, (v.auto||{})[c] ?? null));
-      insPdiMeta.run(lid, mes, v.fortes||'', v.desenvolver||'', JSON.stringify(v.acoes||[{},{},{}]), v.revisao||'', v.compromisso||'');
-    });
-
-    const insSem = db.prepare('INSERT INTO semanal (lider_id,mes,semana,travou,decisao,compromisso,ok) VALUES (?,?,?,?,?,?,?)');
-    Object.entries(d.sem||{}).forEach(([k,v])=>{
-      const [lid,mes]=k.split('|');
-      for(let s=1;s<=5;s++){
-        const w = v['s'+s];
-        if(!w) continue;
-        insSem.run(lid, mes, s, w.travou||'', w.decisao||'', w.compromisso||'', w.ok?1:0);
-      }
-    });
-
-    setMetaValor('avalImportado', d.avalImportado ? '1' : '0');
-    db.exec('COMMIT');
-  }catch(e){
-    db.exec('ROLLBACK');
-    throw e;
-  }
+/* ---------------- FOTO DO LÍDER (Supabase Storage) ---------------- */
+const MIME_PARA_EXT = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif' };
+async function removerFotosAntigas(liderId){
+  const { data } = await supabase.storage.from(BUCKET_FOTOS).list('', { search: liderId+'-' });
+  const nomes = (data||[]).filter(f=>f.name.startsWith(liderId+'-')).map(f=>f.name);
+  if(nomes.length) await supabase.storage.from(BUCKET_FOTOS).remove(nomes);
 }
 
 /* ---------------- SERVIDOR HTTP ---------------- */
 const app = express();
 app.use(express.json({ limit: '10mb' }));
-app.use(session({
-  name: 'sel.sid',
-  secret: 'jrtelecom-sistema-evolucao-lideres-2026',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', maxAge: 1000*60*60*12 }
-}));
-
-function exigirLogin(req, res, next){
-  if(req.session && req.session.autenticado) return next();
-  res.status(401).json({ erro: 'Não autenticado.' });
-}
 
 app.post('/api/login', (req, res) => {
   const { usuario, senha } = req.body || {};
   if(usuario===USUARIO && senha===SENHA){
-    req.session.autenticado = true;
+    res.setHeader('Set-Cookie', montarSetCookie('sel_auth', criarTokenAuth(), DURACAO_SESSAO_MS/1000));
     return res.json({ ok:true });
   }
   res.status(401).json({ erro: 'Usuário ou senha incorretos.' });
 });
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(()=> res.json({ ok:true }));
+  res.setHeader('Set-Cookie', montarSetCookie('sel_auth', '', 0));
+  res.json({ ok:true });
 });
 app.get('/api/me', (req, res) => {
-  res.json({ autenticado: !!(req.session && req.session.autenticado) });
+  res.json({ autenticado: tokenValido(lerCookies(req).sel_auth) });
 });
 
-app.get('/api/estado', exigirLogin, (req, res) => {
-  res.json(montarEstado());
-});
-app.post('/api/estado', exigirLogin, (req, res) => {
+app.get('/api/estado', exigirLogin, async (req, res) => {
   try{
-    salvarEstado(req.body || {});
+    res.json(await montarEstado());
+  }catch(e){
+    console.error('Erro ao ler estado:', e);
+    res.status(500).json({ erro:'Erro ao ler dados do banco.' });
+  }
+});
+app.post('/api/estado', exigirLogin, async (req, res) => {
+  try{
+    await salvarEstado(req.body || {});
     res.json({ ok:true });
   }catch(e){
     console.error('Erro ao salvar estado:', e);
     res.status(500).json({ erro:'Erro ao salvar no banco de dados.' });
   }
 });
-app.post('/api/importar-historico', exigirLogin, (req, res) => {
-  const r = aplicarHistoricoMonitoramento();
-  res.json(r);
+app.post('/api/importar-historico', exigirLogin, async (req, res) => {
+  try{
+    res.json(await aplicarHistoricoMonitoramento());
+  }catch(e){
+    console.error('Erro ao importar histórico:', e);
+    res.status(500).json({ erro:'Erro ao importar histórico.' });
+  }
 });
 app.post('/api/sincronizar-planilha', exigirLogin, async (req, res) => {
   try{
@@ -493,15 +442,9 @@ app.post('/api/sincronizar-planilha', exigirLogin, async (req, res) => {
   }
 });
 
-const MIME_PARA_EXT = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif' };
-function removerFotosAntigas(liderId){
-  fs.readdirSync(FOTOS_DIR)
-    .filter(nome => nome.startsWith(liderId+'-'))
-    .forEach(nome => { try{ fs.unlinkSync(path.join(FOTOS_DIR, nome)); }catch(e){} });
-}
-app.post('/api/lideres/:id/foto', exigirLogin, (req, res) => {
+app.post('/api/lideres/:id/foto', exigirLogin, async (req, res) => {
   const { id } = req.params;
-  const lider = db.prepare('SELECT id FROM lideres WHERE id=?').get(id);
+  const { data: lider } = await supabase.from('lideres').select('id').eq('id', id).maybeSingle();
   if(!lider) return res.status(404).json({ erro: 'Líder não encontrado.' });
   const m = /^data:(image\/[a-zA-Z+]+);base64,(.+)$/.exec(req.body && req.body.dataUrl || '');
   if(!m) return res.status(400).json({ erro: 'Imagem inválida.' });
@@ -509,30 +452,72 @@ app.post('/api/lideres/:id/foto', exigirLogin, (req, res) => {
   if(!ext) return res.status(400).json({ erro: 'Formato de imagem não suportado. Use JPG, PNG, WEBP ou GIF.' });
   const buffer = Buffer.from(m[2], 'base64');
   if(buffer.length > 8*1024*1024) return res.status(400).json({ erro: 'Imagem maior que 8MB.' });
-  removerFotosAntigas(id);
-  const nomeArquivo = id+'-'+Date.now()+'.'+ext;
-  fs.writeFileSync(path.join(FOTOS_DIR, nomeArquivo), buffer);
-  const caminho = 'uploads/fotos/'+nomeArquivo;
-  db.prepare('UPDATE lideres SET foto=? WHERE id=?').run(caminho, id);
-  res.json({ ok:true, foto: caminho });
+  try{
+    await removerFotosAntigas(id);
+    const nomeArquivo = id+'-'+Date.now()+'.'+ext;
+    const { error: erroUpload } = await supabase.storage.from(BUCKET_FOTOS).upload(nomeArquivo, buffer, { contentType: m[1] });
+    if(erroUpload) throw erroUpload;
+    const caminho = 'uploads/fotos/'+nomeArquivo;
+    const { error: erroUpdate } = await supabase.from('lideres').update({ foto: caminho }).eq('id', id);
+    if(erroUpdate) throw erroUpdate;
+    res.json({ ok:true, foto: caminho });
+  }catch(e){
+    console.error('Erro ao salvar foto:', e);
+    res.status(500).json({ erro:'Erro ao salvar a foto.' });
+  }
 });
-app.delete('/api/lideres/:id/foto', exigirLogin, (req, res) => {
+app.delete('/api/lideres/:id/foto', exigirLogin, async (req, res) => {
   const { id } = req.params;
-  removerFotosAntigas(id);
-  db.prepare('UPDATE lideres SET foto=NULL WHERE id=?').run(id);
-  res.json({ ok:true });
+  try{
+    await removerFotosAntigas(id);
+    await supabase.from('lideres').update({ foto: null }).eq('id', id);
+    res.json({ ok:true });
+  }catch(e){
+    console.error('Erro ao remover foto:', e);
+    res.status(500).json({ erro:'Erro ao remover a foto.' });
+  }
 });
 
-app.use('/uploads', express.static(UPLOADS_DIR));
+/* Serve a foto a partir do Storage privado do Supabase, exigindo login — mantém a mesma URL
+   (/uploads/fotos/<arquivo>) que o front-end já usa, só troca o disco local pelo bucket. */
+app.get('/uploads/fotos/:nome', exigirLogin, async (req, res) => {
+  const { data, error } = await supabase.storage.from(BUCKET_FOTOS).download(req.params.nome);
+  if(error || !data) return res.status(404).end();
+  const buffer = Buffer.from(await data.arrayBuffer());
+  res.setHeader('Content-Type', data.type || 'application/octet-stream');
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.send(buffer);
+});
+
 app.use(express.static(FRONTEND_DIR));
 
-app.listen(PORTA, '127.0.0.1', () => {
-  console.log('=======================================================');
-  console.log(' Sistema de Evolução de Líderes — JR Telecom');
-  console.log(' Banco de dados: ' + DB_PATH);
-  console.log(' Acesse em:      http://localhost:' + PORTA);
-  console.log('=======================================================');
+async function iniciar(){
+  const { count, error } = await supabase.from('lideres').select('*', { count:'exact', head:true });
+  if(error){
+    console.error('Não foi possível conectar ao Supabase:', error.message);
+    process.exit(1);
+  }
+  if(count===0){
+    console.log('Banco novo — aplicando cadastro inicial dos 8 líderes e histórico da planilha de Monitoramento...');
+    await rodarSeedInicial();
+  }
   sincronizarPlanilhaMonitoramento()
     .then(r => console.log('Sincronização com a planilha de Monitoramento: '+r.linhasAplicadas+' lançamento(s) aplicado(s) em '+r.mesesAtingidos+' mês(es)/líder(es), '+r.ignoradas+' linha(s) ignorada(s) (nome não é líder cadastrado).'))
     .catch(e => console.error('Sincronização inicial com a planilha falhou (o sistema segue funcionando com os dados que já tem):', e.message));
-});
+}
+
+if(require.main === module){
+  iniciar().then(()=>{
+    app.listen(PORTA, '127.0.0.1', () => {
+      console.log('=======================================================');
+      console.log(' Sistema de Evolução de Líderes — JR Telecom');
+      console.log(' Banco de dados: Supabase ('+SUPABASE_URL+')');
+      console.log(' Acesse em:      http://localhost:'+PORTA);
+      console.log('=======================================================');
+    });
+  });
+}else{
+  iniciar().catch(e=>console.error('Erro na inicialização (serverless):', e.message));
+}
+
+module.exports = app;

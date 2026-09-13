@@ -350,6 +350,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
 <div id="avisoConexao">Não foi possível falar com o servidor. Verifique se o backend (INICIAR_SISTEMA.bat) está rodando.</div>
 
 <script>
+/* Escapa texto digitado antes de inserir em HTML via innerHTML — nunca confiar em texto
+   vindo de nome/equipe/função/observação/etc. sem passar por aqui primeiro (proteção contra
+   XSS armazenado: alguém digitar algo como "<img src=x onerror=...>" num campo de texto). */
+function esc(s){
+  if(s==null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 /* ---------------- MODELO ---------------- */
 const IND = [
   {id:'pont', nome:'Pontualidade',            perfil:'plan', desc:'Cumpre e faz a equipe cumprir horário, escala e prazos'},
@@ -499,7 +506,7 @@ function avatarHTML(l, tam){
   const estilo = 'width:'+tam+'px;height:'+tam+'px;border-radius:50%;object-fit:cover;flex:0 0 auto;display:inline-flex;vertical-align:middle';
   if(l.foto) return '<img src="/'+l.foto+'" style="'+estilo+'" alt="">';
   const iniciais = (l.nome||'?').trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase();
-  return '<div style="'+estilo+';background:var(--azul);color:#fff;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(tam*0.4)+'px">'+iniciais+'</div>';
+  return '<div style="'+estilo+';background:var(--azul);color:#fff;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(tam*0.4)+'px">'+esc(iniciais)+'</div>';
 }
 function enviarFotoLider(id, input){
   const arquivo = input.files[0]; if(!arquivo) return;
@@ -548,7 +555,7 @@ function renderLideres(){
   el.innerHTML='<table><tr><th></th><th>Líder</th><th>Equipe / turno</th><th>Técnicos</th><th>Avaliações</th><th></th></tr>'+
     DB.lideres.map(l=>{
       const n=Object.keys(DB.aval).filter(k=>k.startsWith(l.id+'|')).length;
-      return '<tr><td>'+avatarHTML(l,36)+'</td><td><b>'+l.nome+'</b></td><td>'+(l.equipe||'—')+'</td><td>'+(l.qtd||'—')+
+      return '<tr><td>'+avatarHTML(l,36)+'</td><td><b>'+esc(l.nome)+'</b></td><td>'+esc(l.equipe||'—')+'</td><td>'+esc(l.qtd||'—')+
         '</td><td>'+n+' mês(es)</td><td style="text-align:right;white-space:nowrap">'+
         '<button class="btn-sec" style="padding:4px 10px;font-size:12px" onclick="document.getElementById(\'fotoInp_'+l.id+'\').click()">Foto</button> '+
         (l.foto?('<button class="btn-del" style="padding:4px 10px;font-size:12px" onclick="removerFotoLider(\''+l.id+'\')">Remover foto</button> '):'')+
@@ -557,7 +564,7 @@ function renderLideres(){
     }).join('')+'</table>';
 }
 function preencherSelects(){
-  const op=DB.lideres.map(l=>'<option value="'+l.id+'">'+l.nome+'</option>').join('');
+  const op=DB.lideres.map(l=>'<option value="'+l.id+'">'+esc(l.nome)+'</option>').join('');
   ['avLider','swLider','hiLider','pdLider'].forEach(id=>{
     const s=document.getElementById(id), v=s.value;
     s.innerHTML=op||'<option value="">— cadastre um líder —</option>';
@@ -593,10 +600,10 @@ function carregarAvaliacao(){
     h+='</div>';
   });
   h+='<h3>Fechamento da conversa</h3>'+
-     '<div style="margin-bottom:10px"><label>Ponto mais forte do mês</label><textarea onchange="setCampo(\''+k+'\',\'forte\',this.value)">'+(d.forte||'')+'</textarea></div>'+
-     '<div style="margin-bottom:10px"><label>O que precisa melhorar</label><textarea onchange="setCampo(\''+k+'\',\'melhorar\',this.value)">'+(d.melhorar||'')+'</textarea></div>'+
-     '<div style="margin-bottom:10px"><label>Meta única para o próximo mês (específica e mensurável)</label><textarea onchange="setCampo(\''+k+'\',\'meta\',this.value)">'+(d.meta||'')+'</textarea></div>'+
-     '<div><label>Observações</label><textarea onchange="setCampo(\''+k+'\',\'obs\',this.value)">'+(d.obs||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label>Ponto mais forte do mês</label><textarea onchange="setCampo(\''+k+'\',\'forte\',this.value)">'+esc(d.forte||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label>O que precisa melhorar</label><textarea onchange="setCampo(\''+k+'\',\'melhorar\',this.value)">'+esc(d.melhorar||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label>Meta única para o próximo mês (específica e mensurável)</label><textarea onchange="setCampo(\''+k+'\',\'meta\',this.value)">'+esc(d.meta||'')+'</textarea></div>'+
+     '<div><label>Observações</label><textarea onchange="setCampo(\''+k+'\',\'obs\',this.value)">'+esc(d.obs||'')+'</textarea></div>'+
      '<div class="acoes"><button class="btn" onclick="carregarAvaliacao();renderPainel();alert(\'Avaliação salva.\')">Salvar avaliação</button>'+
      '<button class="btn-sec" onclick="gerarRelatorioAvaliacao(\''+k+'\')">Gerar PDF desta avaliação</button>'+
      '<button class="btn-sec" onclick="abrirPreviaDemonstrativo(\''+k+'\')">Gerar Demonstrativo de Desempenho</button></div>'+
@@ -670,7 +677,7 @@ function gerarRelatorioAvaliacao(k){
   const bloco = (titulo, valor) => !valor ? '' :
     '<div style="border:1px solid #d3dee8;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
     '<div style="font-size:11px;color:#000ADC;font-weight:700;text-transform:uppercase;margin-bottom:4px">'+titulo+'</div>'+
-    '<div style="font-size:13px;white-space:pre-wrap">'+valor+'</div></div>';
+    '<div style="font-size:13px;white-space:pre-wrap">'+esc(valor)+'</div></div>';
   const perfis = ['plan','anal','comu'].map(p=>{
     const v = media(d.notas,p)||0;
     return '<div style="display:flex;justify-content:space-between;font-size:12px"><span>'+PERFIS[p].nome+'</span><b>'+pct(v)+'</b></div>'+
@@ -682,8 +689,8 @@ function gerarRelatorioAvaliacao(k){
       '<div style="font-size:19px;font-weight:700;margin:2px 0 16px;color:#1e2b38">Relatório de Avaliação Mensal</div>'+
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'+
         avatarHTML(l,48)+
-        '<div><div style="font-size:16px;font-weight:700">'+l.nome+'</div>'+
-        '<div style="font-size:12px;color:#6b7c8c">'+(l.equipe||'')+' · '+mesLabel(mes)+'</div></div>'+
+        '<div><div style="font-size:16px;font-weight:700">'+esc(l.nome)+'</div>'+
+        '<div style="font-size:12px;color:#6b7c8c">'+esc(l.equipe||'')+' · '+mesLabel(mes)+'</div></div>'+
       '</div>'+
       '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">'+
         '<div style="flex:1;min-width:140px;background:#eef4fa;border-radius:8px;padding:12px;text-align:center">'+
@@ -761,16 +768,16 @@ function corpoDemonstrativo(l, mes, d, opts){
   const rotulo = 'color:#0070C0;text-decoration:underline;font-weight:700';
   const campo = (id, valor, largura) => '<input id="'+id+'" value="'+String(valor||'').replace(/"/g,'&quot;')+'" style="border:none;border-bottom:1px solid #999;font-size:13px;width:'+(largura||'70%')+';padding:2px 0">';
 
-  const colaboradorHtml = '<span style="'+rotulo+'">COLABORADOR:</span> '+(editavel ? campo('demoColaboradorInput', colaboradorValor) : (colaboradorValor||'—'));
-  const unidadeHtml = '<span style="'+rotulo+'">UNIDADE:</span> '+(editavel ? campo('demoUnidadeInput', unidadeValor) : (unidadeValor||'—'));
-  const funcaoHtml = '<span style="'+rotulo+'">FUNÇÃO:</span> '+(editavel ? campo('demoFuncaoInput', funcaoValor, '65%') : (funcaoValor||'—'));
-  const referenciaHtml = '<span style="'+rotulo+'">REFERÊNCIA:</span> '+(editavel ? campo('demoReferenciaInput', referenciaValor, '55%') : (referenciaValor||'—'));
+  const colaboradorHtml = '<span style="'+rotulo+'">COLABORADOR:</span> '+(editavel ? campo('demoColaboradorInput', colaboradorValor) : esc(colaboradorValor||'—'));
+  const unidadeHtml = '<span style="'+rotulo+'">UNIDADE:</span> '+(editavel ? campo('demoUnidadeInput', unidadeValor) : esc(unidadeValor||'—'));
+  const funcaoHtml = '<span style="'+rotulo+'">FUNÇÃO:</span> '+(editavel ? campo('demoFuncaoInput', funcaoValor, '65%') : esc(funcaoValor||'—'));
+  const referenciaHtml = '<span style="'+rotulo+'">REFERÊNCIA:</span> '+(editavel ? campo('demoReferenciaInput', referenciaValor, '55%') : esc(referenciaValor||'—'));
   const dataHtml = editavel
     ? 'DATA: <input id="demoDataInput" type="date" value="'+(opts.dataIso || new Date().toISOString().slice(0,10))+'" style="border:1px solid #ccc;border-radius:4px;padding:3px 6px;font-size:13px">'
-    : 'DATA: '+dataBR;
+    : 'DATA: '+esc(dataBR);
   const obsHtml = editavel
-    ? '<textarea id="demoObsInput" style="width:100%;min-height:70px;font-family:Arial,sans-serif;font-size:13px;border:1px solid #ccc;border-radius:4px;padding:6px;margin-top:4px;box-sizing:border-box">'+obsValor+'</textarea>'
-    : '<div style="white-space:pre-wrap">'+(obsValor||'—')+'</div>';
+    ? '<textarea id="demoObsInput" style="width:100%;min-height:70px;font-family:Arial,sans-serif;font-size:13px;border:1px solid #ccc;border-radius:4px;padding:6px;margin-top:4px;box-sizing:border-box">'+esc(obsValor)+'</textarea>'
+    : '<div style="white-space:pre-wrap">'+esc(obsValor||'—')+'</div>';
   const m = media(d.notas);
   const linhas = CRITERIOS_DEMONSTRATIVO.map(c=>{
     const v = d.notas[c.id];
@@ -870,19 +877,19 @@ function carregarPDI(){
   });
   h+='<div id="resumoPDI"></div>';
   h+='<h3>Plano de desenvolvimento</h3>'+
-     '<div style="margin-bottom:10px"><label>Pontos fortes a preservar</label><textarea onchange="setPDIc(\''+k+'\',\'fortes\',this.value)">'+(d.fortes||'')+'</textarea></div>'+
-     '<div style="margin-bottom:10px"><label>Pontos a desenvolver (os 2 ou 3 de nota mais baixa)</label><textarea onchange="setPDIc(\''+k+'\',\'desenvolver\',this.value)">'+(d.desenvolver||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label>Pontos fortes a preservar</label><textarea onchange="setPDIc(\''+k+'\',\'fortes\',this.value)">'+esc(d.fortes||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label>Pontos a desenvolver (os 2 ou 3 de nota mais baixa)</label><textarea onchange="setPDIc(\''+k+'\',\'desenvolver\',this.value)">'+esc(d.desenvolver||'')+'</textarea></div>'+
      '<table style="margin-bottom:10px"><tr><th style="width:38%">O que será feito</th><th style="width:30%">Como / com que apoio</th><th style="width:16%">Prazo</th><th>Responsável</th></tr>';
   for(let a=0;a<3;a++){
     const ac=d.acoes[a]||{};
-    h+='<tr><td><input value="'+(ac.oque||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'oque\',this.value)"></td>'+
-       '<td><input value="'+(ac.como||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'como\',this.value)"></td>'+
+    h+='<tr><td><input value="'+esc(ac.oque||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'oque\',this.value)"></td>'+
+       '<td><input value="'+esc(ac.como||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'como\',this.value)"></td>'+
        '<td><input type="date" value="'+(ac.prazo||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'prazo\',this.value)"></td>'+
-       '<td><input value="'+(ac.resp||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'resp\',this.value)"></td></tr>';
+       '<td><input value="'+esc(ac.resp||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'resp\',this.value)"></td></tr>';
   }
   h+='</table>'+
      '<div class="row"><div><label>Data da próxima revisão do PDI</label><input type="date" value="'+(d.revisao||'')+'" onchange="setPDIc(\''+k+'\',\'revisao\',this.value)"></div>'+
-     '<div style="flex:2"><label>Compromisso assumido pelo líder (nas palavras dele)</label><input value="'+(d.compromisso||'')+'" onchange="setPDIc(\''+k+'\',\'compromisso\',this.value)"></div></div>'+
+     '<div style="flex:2"><label>Compromisso assumido pelo líder (nas palavras dele)</label><input value="'+esc(d.compromisso||'')+'" onchange="setPDIc(\''+k+'\',\'compromisso\',this.value)"></div></div>'+
      '<div class="acoes"><button class="btn" onclick="carregarPDI();alert(\'PDI salvo.\')">Salvar PDI</button>'+
      '<button class="btn-sec" onclick="window.print()">Gerar PDF deste PDI</button></div></div>';
   el.innerHTML=h;
@@ -954,9 +961,9 @@ function carregarSemanal(){
   for(let s=1;s<=5;s++){
     const w=d['s'+s]||{travou:'',decisao:'',compromisso:'',ok:false};
     h+='<div class="semana"><strong>Semana '+s+'</strong>'+
-      '<label style="margin-top:8px">1. O que travou a equipe?</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'travou\',this.value)">'+w.travou+'</textarea>'+
-      '<label style="margin-top:8px">2. Que decisão ele tomou sozinho / trouxe pra você?</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'decisao\',this.value)">'+w.decisao+'</textarea>'+
-      '<label style="margin-top:8px">3. Compromisso até a próxima semana</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'compromisso\',this.value)">'+w.compromisso+'</textarea>'+
+      '<label style="margin-top:8px">1. O que travou a equipe?</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'travou\',this.value)">'+esc(w.travou)+'</textarea>'+
+      '<label style="margin-top:8px">2. Que decisão ele tomou sozinho / trouxe pra você?</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'decisao\',this.value)">'+esc(w.decisao)+'</textarea>'+
+      '<label style="margin-top:8px">3. Compromisso até a próxima semana</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'compromisso\',this.value)">'+esc(w.compromisso)+'</textarea>'+
       '<label style="margin-top:8px"><input type="checkbox" style="width:auto;margin-right:6px" '+(w.ok?'checked':'')+
       ' onchange="setSem(\''+k+'\',\'s'+s+'\',\'ok\',this.checked)">Compromisso da semana anterior foi cumprido</label></div>';
   }
@@ -995,7 +1002,7 @@ function renderPainel(){
     dados.map((x,i)=>{
       const m=media(x.d.notas), f=faixaPct(m);
       const dom=['plan','anal','comu'].sort((a,b)=>media(x.d.notas,b)-media(x.d.notas,a))[0];
-      return '<tr><td>'+(i+1)+'</td><td><div style="display:flex;align-items:center;gap:8px">'+avatarHTML(x.l,32)+'<div><b>'+x.l.nome+'</b><br><small style="color:#6b7c8c">'+(x.l.equipe||'')+'</small></div></div></td>'+
+      return '<tr><td>'+(i+1)+'</td><td><div style="display:flex;align-items:center;gap:8px">'+avatarHTML(x.l,32)+'<div><b>'+esc(x.l.nome)+'</b><br><small style="color:#6b7c8c">'+esc(x.l.equipe||'')+'</small></div></div></td>'+
         '<td class="nota '+cls(m)+'">'+pct(m)+'</td>'+
         '<td><div class="bar"><i style="width:'+m+'%;background:'+corN(m)+'"></i></div></td>'+
         '<td style="color:'+f.c+';font-weight:600;font-size:12px">'+f.t+'</td>'+
@@ -1005,7 +1012,7 @@ function renderPainel(){
 
   document.getElementById('perfis').innerHTML=dados.map(x=>{
     const notas=x.d.notas;
-    return '<div class="card" style="margin:0"><h3 style="margin-top:0;display:flex;align-items:center;gap:8px">'+avatarHTML(x.l,28)+'<span>'+x.l.nome+'</span></h3>'+
+    return '<div class="card" style="margin:0"><h3 style="margin-top:0;display:flex;align-items:center;gap:8px">'+avatarHTML(x.l,28)+'<span>'+esc(x.l.nome)+'</span></h3>'+
       ['plan','anal','comu'].map(p=>{
         const v=media(notas,p)||0;
         return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">'+
@@ -1013,17 +1020,17 @@ function renderPainel(){
           '<div class="bar"><i style="width:'+v+'%;background:'+PERFIS[p].cor+'"></i></div></div>';
       }).join('')+
       ultimoPDI(x.l.id)+
-      (x.d.meta?'<div style="margin-top:10px;font-size:12px;background:var(--claro);padding:8px;border-radius:5px"><b>Meta do mês:</b> '+x.d.meta+'</div>':'')+
+      (x.d.meta?'<div style="margin-top:10px;font-size:12px;background:var(--claro);padding:8px;border-radius:5px"><b>Meta do mês:</b> '+esc(x.d.meta)+'</div>':'')+
       '</div>';
   }).join('');
 
   let al=[];
   dados.forEach(x=>{
     IND.forEach(i=>{ if(x.d.notas[i.id]!=null&&x.d.notas[i.id]<40)
-      al.push({t:'critico', txt:'<b>'+x.l.nome+'</b> — '+i.nome+' em '+pct(x.d.notas[i.id])+'. Exige plano de ação com prazo.'}); });
+      al.push({t:'critico', txt:'<b>'+esc(x.l.nome)+'</b> — '+i.nome+' em '+pct(x.d.notas[i.id])+'. Exige plano de ação com prazo.'}); });
     const fraco=['plan','anal','comu'].sort((a,b)=>media(x.d.notas,a)-media(x.d.notas,b))[0];
     if(media(x.d.notas,fraco)<70)
-      al.push({t:'dev', txt:'<b>'+x.l.nome+'</b> — perfil <b>'+PERFIS[fraco].nome+'</b> em '+pct(media(x.d.notas,fraco))+'. Foco de desenvolvimento: '+PERFIS[fraco].txt.toLowerCase()+'.'});
+      al.push({t:'dev', txt:'<b>'+esc(x.l.nome)+'</b> — perfil <b>'+PERFIS[fraco].nome+'</b> em '+pct(media(x.d.notas,fraco))+'. Foco de desenvolvimento: '+PERFIS[fraco].txt.toLowerCase()+'.'});
   });
   document.getElementById('alertas').innerHTML = al.length
     ? '<ul style="margin:0;padding-left:18px;line-height:2;font-size:13px">'+al.map(a=>'<li>'+a.txt+'</li>').join('')+'</ul>'
@@ -1066,10 +1073,10 @@ function renderHistorico(){
   meses.slice().reverse().forEach(m=>{
     const d=DB.aval[lid+'|'+m];
     h+='<div class="semana"><strong>'+mesLabel(m)+'</strong>'+
-      (d.forte?'<div style="margin-top:6px;font-size:13px"><b>Forte:</b> '+d.forte+'</div>':'')+
-      (d.melhorar?'<div style="font-size:13px"><b>Melhorar:</b> '+d.melhorar+'</div>':'')+
-      (d.meta?'<div style="font-size:13px"><b>Meta:</b> '+d.meta+'</div>':'')+
-      (d.obs?'<div style="font-size:13px;color:#6b7c8c"><b>Obs:</b> '+d.obs+'</div>':'')+'</div>';
+      (d.forte?'<div style="margin-top:6px;font-size:13px"><b>Forte:</b> '+esc(d.forte)+'</div>':'')+
+      (d.melhorar?'<div style="font-size:13px"><b>Melhorar:</b> '+esc(d.melhorar)+'</div>':'')+
+      (d.meta?'<div style="font-size:13px"><b>Meta:</b> '+esc(d.meta)+'</div>':'')+
+      (d.obs?'<div style="font-size:13px;color:#6b7c8c"><b>Obs:</b> '+esc(d.obs)+'</div>':'')+'</div>';
   });
   h+='<div class="acoes"><button class="btn-sec" onclick="window.print()">Gerar PDF da evolução</button></div>';
   el.innerHTML=h;
@@ -1161,7 +1168,7 @@ function renderRelatorioGeral(){
         const av = avaliacaoPorLider[l.id] ? Array.from(avaliacaoPorLider[l.id]).sort() : [];
         const pd = pdiPorLider[l.id] ? Array.from(pdiPorLider[l.id]).sort() : [];
         const se = semPorLider[l.id] ? Array.from(semPorLider[l.id]).sort() : [];
-        return '<tr><td><b>'+l.nome+'</b></td>'+
+        return '<tr><td><b>'+esc(l.nome)+'</b></td>'+
           '<td class="nota">'+av.length+'</td><td style="font-size:12px;color:#6b7c8c">'+(av.map(mesLabel).join(', ')||'—')+'</td>'+
           '<td class="nota">'+pd.length+'</td><td style="font-size:12px;color:#6b7c8c">'+(pd.map(mesLabel).join(', ')||'—')+'</td>'+
           '<td class="nota">'+se.length+'</td><td style="font-size:12px;color:#6b7c8c">'+(se.map(mesLabel).join(', ')||'—')+'</td></tr>';
