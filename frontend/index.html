@@ -718,6 +718,81 @@ function gerarRelatorioAvaliacao(k){
   document.body.classList.add('imprimindo-relatorio');
   window.print();
 }
+function gerarRelatorioPDI(k){
+  const [lid, mes] = k.split('|');
+  const l = DB.lideres.find(x=>x.id===lid);
+  const d = DB.pdi[k] || {notas:{}, auto:{}, fortes:'', desenvolver:'', acoes:[{},{},{}], revisao:'', compromisso:''};
+  d.acoes = d.acoes || [{},{},{}];
+  const m = mediaPDI(d.notas), f = faixaPDI(m);
+  const preenchidos = PDI_ITENS.filter(i=>d.notas[i.id]!=null).length;
+  const gaps = PDI_ITENS.filter(i=>d.notas[i.id]!=null && d.auto[i.id]!=null && Math.abs(d.notas[i.id]-d.auto[i.id])>=3);
+  const barrasBlocos = PDI_BLOCOS.map(b=>{
+    const v = mediaPDI(d.notas, b);
+    return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px"><span>'+b.t+'</span><b>'+(v?fmtNota(v)+'/10':'—')+'</b></div>'+
+      '<div style="height:6px;background:#e8eef4;border-radius:4px"><div style="height:100%;width:'+(v*10)+'%;background:'+b.cor+';border-radius:4px"></div></div></div>';
+  }).join('');
+  const linhasTabela = PDI_BLOCOS.map(b=>{
+    const cabecalho = '<tr><td colspan="3" style="padding:6px 8px;background:'+b.cor+';color:#fff;font-size:11px;font-weight:700;text-transform:uppercase">'+b.t+'</td></tr>';
+    const linhas = b.itens.map(i=>{
+      const g = d.notas[i.id], a = d.auto[i.id];
+      const divergente = g!=null && a!=null && Math.abs(g-a)>=3;
+      return '<tr'+(divergente?' style="background:#fff8e5"':'')+'>'+
+        '<td style="padding:6px 8px;border-bottom:1px solid #eee">'+i.nome+'</td>'+
+        '<td style="text-align:center;border-bottom:1px solid #eee">'+(g!=null?fmtNota(g):'—')+'</td>'+
+        '<td style="text-align:center;border-bottom:1px solid #eee'+(divergente?';color:#c0392b;font-weight:700':'')+'">'+(a!=null?fmtNota(a):'—')+'</td>'+
+      '</tr>';
+    }).join('');
+    return cabecalho+linhas;
+  }).join('');
+  const bloco = (titulo, valor) => !valor ? '' :
+    '<div style="border:1px solid #d3dee8;border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+    '<div style="font-size:11px;color:#000ADC;font-weight:700;text-transform:uppercase;margin-bottom:4px">'+titulo+'</div>'+
+    '<div style="font-size:13px;white-space:pre-wrap">'+esc(valor)+'</div></div>';
+  const acoesPreenchidas = d.acoes.filter(a=>a && (a.oque||a.como||a.prazo||a.resp));
+  const linhasAcoes = acoesPreenchidas.length ? acoesPreenchidas.map(a=>
+    '<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">'+esc(a.oque||'—')+'</td>'+
+    '<td style="padding:6px 8px;border-bottom:1px solid #eee">'+esc(a.como||'—')+'</td>'+
+    '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">'+(a.prazo?new Date(a.prazo+'T00:00:00').toLocaleDateString('pt-BR'):'—')+'</td>'+
+    '<td style="padding:6px 8px;border-bottom:1px solid #eee">'+esc(a.resp||'—')+'</td></tr>'
+  ).join('') : '<tr><td colspan="4" style="padding:8px;text-align:center;color:#6b7c8c">Nenhuma ação registrada.</td></tr>';
+  const html =
+    '<div class="folha-timbrada">'+
+      '<div style="font-size:11px;letter-spacing:1px;color:#000ADC;font-weight:700;text-transform:uppercase">Sistema de Evolução de Líderes</div>'+
+      '<div style="font-size:19px;font-weight:700;margin:2px 0 16px;color:#1e2b38">Relatório de PDI — Plano de Desenvolvimento Individual</div>'+
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'+
+        avatarHTML(l,48)+
+        '<div><div style="font-size:16px;font-weight:700">'+esc(l.nome)+'</div>'+
+        '<div style="font-size:12px;color:#6b7c8c">'+esc(l.equipe||'')+' · ciclo '+mesLabel(mes)+'</div></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">'+
+        '<div style="flex:1;min-width:140px;background:#eef4fa;border-radius:8px;padding:12px;text-align:center">'+
+          '<div style="font-size:11px;color:#6b7c8c;text-transform:uppercase">Média geral PDI</div>'+
+          '<div style="font-size:26px;font-weight:700;color:'+f.c+'">'+(preenchidos?fmtNota(m)+'/10':'—')+'</div>'+
+          '<div style="font-size:12px;color:'+f.c+';font-weight:700">'+(preenchidos?f.t:'—')+'</div>'+
+        '</div>'+
+        '<div style="flex:2;min-width:220px">'+barrasBlocos+'</div>'+
+      '</div>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">'+
+        '<tr style="background:#000ADC;color:#fff"><th style="padding:6px 8px;text-align:left">Critério</th><th style="padding:6px 8px">Gestor</th><th style="padding:6px 8px">Autoavaliação</th></tr>'+
+        linhasTabela+
+      '</table>'+
+      (gaps.length ? '<div style="background:#fff8e5;border-left:3px solid #d99b00;padding:8px 10px;margin-bottom:14px;font-size:12px">Percepção divergente (3 pontos ou mais, na escala de 0 a 10) em: '+gaps.map(g=>g.nome).join(', ')+'.</div>' : '<div style="margin-bottom:14px"></div>')+
+      '<div style="font-size:14px;font-weight:700;color:#1e2b38;margin-bottom:8px">Plano de desenvolvimento</div>'+
+      bloco('Pontos fortes a preservar', d.fortes)+
+      bloco('Pontos a desenvolver', d.desenvolver)+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">'+
+        '<tr style="background:#000ADC;color:#fff"><th style="padding:6px 8px;text-align:left">O que será feito</th><th style="padding:6px 8px;text-align:left">Como / com que apoio</th><th style="padding:6px 8px">Prazo</th><th style="padding:6px 8px;text-align:left">Responsável</th></tr>'+
+        linhasAcoes+
+      '</table>'+
+      '<div style="font-size:11px;color:#000ADC;font-weight:700;text-transform:uppercase;margin-bottom:2px">Próxima revisão do PDI</div>'+
+      '<div style="font-size:13px;margin-bottom:10px">'+(d.revisao?new Date(d.revisao+'T00:00:00').toLocaleDateString('pt-BR'):'—')+'</div>'+
+      bloco('Compromisso assumido pelo líder', d.compromisso)+
+      '<div style="font-size:11px;color:#6b7c8c;text-align:center;margin-top:10px">Gerado em '+new Date().toLocaleString('pt-BR')+'</div>'+
+    '</div>';
+  document.getElementById('relatorioImpressao').innerHTML = html;
+  document.body.classList.add('imprimindo-relatorio');
+  window.print();
+}
 window.addEventListener('afterprint', function(){ document.body.classList.remove('imprimindo-relatorio'); });
 
 /* ---------------- DEMONSTRATIVO DE DESEMPENHO (documento oficial da JR Telecom, com prévia antes do PDF) ---------------- */
@@ -891,7 +966,7 @@ function carregarPDI(){
      '<div class="row"><div><label>Data da próxima revisão do PDI</label><input type="date" value="'+(d.revisao||'')+'" onchange="setPDIc(\''+k+'\',\'revisao\',this.value)"></div>'+
      '<div style="flex:2"><label>Compromisso assumido pelo líder (nas palavras dele)</label><input value="'+esc(d.compromisso||'')+'" onchange="setPDIc(\''+k+'\',\'compromisso\',this.value)"></div></div>'+
      '<div class="acoes"><button class="btn" onclick="carregarPDI();alert(\'PDI salvo.\')">Salvar PDI</button>'+
-     '<button class="btn-sec" onclick="window.print()">Gerar PDF deste PDI</button></div></div>';
+     '<button class="btn-sec" onclick="gerarRelatorioPDI(\''+k+'\')">Gerar PDF deste PDI</button></div></div>';
   el.innerHTML=h;
   resumoPDI(k);
 }
