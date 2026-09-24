@@ -30,7 +30,6 @@ const BUCKET_FOTOS = 'fotos';
 
 const USUARIO = process.env.ADMIN_USUARIO;
 const SENHA_HASH = process.env.ADMIN_SENHA_HASH;   // scrypt$N$r$p$sal$hash (gerado por backend/gerar-hash-senha.js)
-const SENHA = process.env.ADMIN_SENHA;             // legado (texto puro) — só usado se não houver ADMIN_SENHA_HASH
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,11 +42,6 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
     process.exit(1);
   }
 });
-if(!SENHA_HASH && !SENHA){
-  console.error('ERRO: defina ADMIN_SENHA_HASH (recomendado) ou ADMIN_SENHA antes de iniciar o servidor.');
-  process.exit(1);
-}
-if(!SENHA_HASH) console.warn('AVISO: usando ADMIN_SENHA em texto puro. Troque por ADMIN_SENHA_HASH (node backend/gerar-hash-senha.js).');
 if(SESSION_SECRET.length < 32){
   console.error('ERRO: SESSION_SECRET precisa ter pelo menos 32 caracteres.');
   process.exit(1);
@@ -134,8 +128,6 @@ async function auditar(evento, ip, detalhe){
 
 /* Senha: hash scrypt com comparação em tempo constante. Usuário e senha são SEMPRE ambos verificados
    (sem atalho que revele qual dos dois errou). */
-/* Senhas que já vazaram (ficaram públicas no histórico do git): nunca aceitas, mesmo que ainda estejam numa variável de ambiente. */
-const SENHAS_COMPROMETIDAS = new Set(['bezerra01']);
 function conferirScrypt(senha, hash){
   try{
     const [alg, N, r, p, salB64, hashB64] = String(hash).split('$');
@@ -145,115 +137,20 @@ function conferirScrypt(senha, hash){
     return crypto.timingSafeEqual(candidato, esperado);
   }catch(e){ return false; }
 }
-/* O hash guardado no banco (tabela admin_credenciais) tem prioridade sobre as variáveis de ambiente: dá pra trocar a
-   senha sem redeploy (node backend/definir-senha-admin.js). Se o banco não responder, o login falha fechado (503). */
+/* A senha do admin existe SÓ como hash scrypt: no banco (tabela admin_credenciais, tem prioridade) ou, como plano B,
+   em ADMIN_SENHA_HASH. Não há senha em texto puro em lugar nenhum; sem hash configurado ninguém entra.
+   Se o banco não responder o login falha fechado (503). Trocar a senha: node backend/definir-senha-admin.js "nova". */
 async function verificarSenha(informada){
   const s = String(informada == null ? '' : informada).slice(0,256);
   const { data, error } = await supabase.from('admin_credenciais').select('senha_hash').eq('usuario', USUARIO).maybeSingle();
   if(error) throw error;
   if(data && data.senha_hash) return conferirScrypt(s, data.senha_hash);
   if(SENHA_HASH) return conferirScrypt(s, SENHA_HASH);
-  if(SENHAS_COMPROMETIDAS.has(SENHA)) return false;
-  return iguais(s, SENHA);
+  return false;
 }
 function verificarUsuario(informado){
   return iguais(String(informado == null ? '' : informado).slice(0,256), USUARIO);
 }
-
-/* ---------------- SEED (só roda se o banco nascer vazio) ---------------- */
-const SEED_LIDERES = [
-  {id:'L01', nome:'Adricelio Passos dos Santos',          equipe:'Interior — S.R. Nonato, Casa Nova, Sobradinho, Remanso, Santana do Sobrado, Campo Alegre, Petrolina', qtd:'20'},
-  {id:'L02', nome:'Andre Alisson da Cruz Santos',         equipe:'Petrolina — Analista Técnico (coordena os 7 líderes) + 3 técnicos diretos', qtd:'3'},
-  {id:'L03', nome:'Claudio Jose dos Passos Borges Junior',equipe:'Petrolina — Projeto, Comercial, Suporte, Remarcações', qtd:'20'},
-  {id:'L04', nome:'Daniel de Brito Silva',                equipe:'Dormentes, Petrolina, KM 25', qtd:'20'},
-  {id:'L05', nome:'Denilson Moises Luz de Oliveira',      equipe:'Petrolina — Qualidade / Operação Interna', qtd:'12'},
-  {id:'L06', nome:'Francisco Dias Galvao',                equipe:'Petrolina', qtd:'15'},
-  {id:'L07', nome:'Isaias Dias Ferreira',                 equipe:'Petrolina — Eventos', qtd:'7'},
-  {id:'L08', nome:'Leonidas Batista da Costa',            equipe:'Petrolina — SEM técnicos vinculados no cadastro (verificar)', qtd:'0'}
-];
-/* Avaliação mensal histórica — extraída da planilha "Técnicos de Monitoramento" (guia de acompanhamento). */
-const IMPORT_AVAL = [
-{lid:'L05',mes:'2025-01',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.84,proc:100.0,pont:98.71}},
-{lid:'L07',mes:'2025-01',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:66.67,vist:66.67,equi:98.6,proc:96.43,pont:97.43}},
-{lid:'L05',mes:'2025-02',notas:{rela:98.57,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.46,proc:100.0,pont:97.86}},
-{lid:'L07',mes:'2025-02',notas:{rela:100.0,orga:100.0,comp:99.29,comu:97.5,prod:100.0,vist:100.0,equi:99.45,proc:97.14,pont:96.57}},
-{lid:'L05',mes:'2025-03',notas:{rela:99.35,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.35,proc:100.0,pont:93.29}},
-{lid:'L07',mes:'2025-03',notas:{rela:98.71,orga:100.0,comp:100.0,comu:98.39,prod:80.0,vist:80.0,equi:99.17,proc:95.81,pont:97.81}},
-{lid:'L01',mes:'2025-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:87.5,vist:100.0,equi:98.85,proc:100.0,pont:99.6}},
-{lid:'L05',mes:'2025-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.49,proc:98.33,pont:97.6}},
-{lid:'L07',mes:'2025-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,pont:97.6}},
-{lid:'L01',mes:'2025-05',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.07,proc:99.03,pont:99.61}},
-{lid:'L05',mes:'2025-05',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.49,proc:100.0,pont:96.45}},
-{lid:'L07',mes:'2025-05',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.35,proc:94.52,pont:99.54}},
-{lid:'L01',mes:'2025-06',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.55,proc:100.0,pont:98.0}},
-{lid:'L05',mes:'2025-06',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.59,proc:98.06,pont:93.6}},
-{lid:'L07',mes:'2025-06',notas:{rela:96.67,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:97.81,proc:100.0,pont:92.8}},
-{lid:'L01',mes:'2025-07',notas:{rela:100.0,orga:100.0,comp:100.0,comu:98.39,prod:100.0,vist:100.0,equi:99.48,proc:100.0,pont:99.23}},
-{lid:'L05',mes:'2025-07',notas:{rela:95.16,orga:99.03,comp:100.0,comu:98.39,prod:100.0,vist:100.0,equi:99.51,proc:98.39,pont:91.87}},
-{lid:'L07',mes:'2025-07',notas:{rela:95.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.54,proc:99.35,pont:73.94}},
-{lid:'L01',mes:'2025-08',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.7,proc:100.0,pont:100.0}},
-{lid:'L05',mes:'2025-08',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.66,proc:100.0,pont:47.74}},
-{lid:'L07',mes:'2025-08',notas:{rela:98.33,orga:100.0,comp:100.0,comu:100.0,prod:80.0,vist:62.5,equi:99.31,proc:99.35,pont:90.71}},
-{lid:'L01',mes:'2025-09',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.92,proc:99.03,pont:99.6}},
-{lid:'L05',mes:'2025-09',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.16,proc:100.0,pont:86.8}},
-{lid:'L07',mes:'2025-09',notas:{rela:96.77,orga:100.0,comp:100.0,comu:97.74,prod:100.0,vist:100.0,equi:99.2,proc:99.35,pont:90.0}},
-{lid:'L01',mes:'2025-10',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.35,proc:100.0,pont:100.0}},
-{lid:'L05',mes:'2025-10',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,proc:99.38,pont:99.29}},
-{lid:'L07',mes:'2025-10',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,proc:99.35,pont:94.0}},
-{lid:'L01',mes:'2025-11',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.31,proc:95.33,pont:100.0}},
-{lid:'L03',mes:'2025-11',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.61,proc:100.0,pont:100.0}},
-{lid:'L05',mes:'2025-11',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.37,proc:100.0,pont:97.42}},
-{lid:'L07',mes:'2025-11',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:93.6}},
-{lid:'L01',mes:'2025-12',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.14,proc:100.0,pont:100.0}},
-{lid:'L03',mes:'2025-12',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:42.86,vist:76.92,equi:99.48,proc:100.0,pont:99.23}},
-{lid:'L05',mes:'2025-12',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.3,proc:96.77,pont:99.23}},
-{lid:'L07',mes:'2025-12',notas:{rela:90.32,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:93.42}},
-{lid:'L01',mes:'2026-01',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,equi:96.23,proc:100.0,pont:100.0}},
-{lid:'L03',mes:'2026-01',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:97.86,proc:100.0,pont:99.23}},
-{lid:'L05',mes:'2026-01',notas:{rela:95.16,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:93.1,proc:100.0,pont:89.94}},
-{lid:'L07',mes:'2026-01',notas:{rela:83.87,orga:100.0,comp:100.0,comu:100.0,proc:100.0,pont:93.03}},
-{lid:'L01',mes:'2026-02',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.3,proc:99.0,pont:87.5}},
-{lid:'L03',mes:'2026-02',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.69,proc:100.0,pont:99.57}},
-{lid:'L05',mes:'2026-02',notas:{rela:78.57,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.56,proc:98.21,pont:99.57}},
-{lid:'L07',mes:'2026-02',notas:{rela:96.43,orga:100.0,comp:100.0,comu:100.0,proc:100.0,pont:98.29}},
-{lid:'L01',mes:'2026-03',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.4,proc:99.03,pont:99.6}},
-{lid:'L02',mes:'2026-03',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.81,proc:100.0,pont:97.18}},
-{lid:'L03',mes:'2026-03',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:80.0,equi:98.21,proc:100.0,pont:97.18}},
-{lid:'L05',mes:'2026-03',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.76,proc:100.0,pont:98.78}},
-{lid:'L07',mes:'2026-03',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:91.56}},
-{lid:'L01',mes:'2026-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:98.3,prod:100.0,vist:100.0,equi:98.64,proc:100.0,pont:99.6}},
-{lid:'L02',mes:'2026-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:99.7,vist:99.3,equi:99.16,proc:100.0,pont:97.18}},
-{lid:'L03',mes:'2026-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:99.26}},
-{lid:'L04',mes:'2026-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:92.34}},
-{lid:'L05',mes:'2026-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.84,proc:100.0,pont:97.98}},
-{lid:'L06',mes:'2026-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:99.7,vist:99.3,equi:98.26,proc:100.0,pont:92.34}},
-{lid:'L07',mes:'2026-04',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:40.0}},
-{lid:'L08',mes:'2026-04',notas:{rela:100.0,orga:95.0,comp:100.0,comu:95.0,prod:100.0,vist:100.0,equi:97.39,proc:98.3,pont:93.15}},
-{lid:'L01',mes:'2026-05',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.37,proc:99.33,pont:99.6}},
-{lid:'L02',mes:'2026-05',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.07,proc:98.92,pont:100.0}},
-{lid:'L03',mes:'2026-05',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.55,proc:98.18,pont:82.61}},
-{lid:'L04',mes:'2026-05',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.99,proc:99.33,pont:98.79}},
-{lid:'L05',mes:'2026-05',notas:{rela:96.67,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.84,proc:100.0,pont:98.79}},
-{lid:'L06',mes:'2026-05',notas:{rela:97.65,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:98.39}},
-{lid:'L07',mes:'2026-05',notas:{rela:100.0,orga:100.0,comp:99.67,comu:100.0,prod:100.0,vist:96.67,equi:100.0,proc:100.0,pont:97.28}},
-{lid:'L08',mes:'2026-05',notas:{rela:100.0,orga:100.0,comp:100.0,comu:96.67,prod:100.0,vist:98.33,equi:100.0,proc:96.67,pont:98.39}},
-{lid:'L01',mes:'2026-06',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.62,proc:100.0,pont:99.17}},
-{lid:'L02',mes:'2026-06',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:98.48}},
-{lid:'L03',mes:'2026-06',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.42,proc:100.0,pont:84.2}},
-{lid:'L04',mes:'2026-06',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.75,proc:100.0,pont:99.17}},
-{lid:'L05',mes:'2026-06',notas:{rela:98.33,orga:100.0,comp:99.31,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:100.0}},
-{lid:'L06',mes:'2026-06',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:97.5}},
-{lid:'L07',mes:'2026-06',notas:{rela:100.0,orga:100.0,comp:99.33,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:98.75}},
-{lid:'L08',mes:'2026-06',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:99.17}},
-{lid:'L01',mes:'2026-07',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.26,proc:100.0,pont:99.6}},
-{lid:'L02',mes:'2026-07',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:96.77,equi:99.39,proc:98.06,pont:96.77}},
-{lid:'L03',mes:'2026-07',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:98.26,proc:98.39,pont:98.79}},
-{lid:'L04',mes:'2026-07',notas:{rela:100.0,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.2,proc:98.39,pont:99.6}},
-{lid:'L05',mes:'2026-07',notas:{rela:97.74,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:100.0,proc:100.0,pont:94.35}},
-{lid:'L06',mes:'2026-07',notas:{rela:98.71,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.14,proc:96.77,pont:98.39}},
-{lid:'L07',mes:'2026-07',notas:{rela:97.74,orga:100.0,comp:100.0,comu:100.0,prod:100.0,vist:100.0,equi:99.89,proc:98.39,pont:97.58}},
-{lid:'L08',mes:'2026-07',notas:{rela:99.35,orga:100.0,comp:100.0,comu:100.0,prod:96.77,vist:100.0,equi:100.0,proc:100.0,pont:99.19}}
-];
 
 /* ---------------- VALIDAÇÃO DE ENTRADA ---------------- */
 const RE_ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -261,7 +158,10 @@ const RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
 const RE_CHAVE = /^[A-Za-z0-9_-]{1,40}\|\d{4}-(0[1-9]|1[0-2])$/;
 const RE_DATA = /^(\d{4}-\d{2}-\d{2})?$/;
 const ehObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
-const txtOk = (v, max) => v == null || (typeof v === 'string' && v.length <= (max || 5000));
+const RE_CONTROLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+const txtOk = (v, max) => v == null || (typeof v === 'string' && v.length <= (max || 5000) && !RE_CONTROLE.test(v));
+/* Campos de identidade (nome, equipe, função): nunca aceitam < ou > — nomes legítimos não têm e isso barra tentativa de HTML/script na origem. */
+const identOk = (v, max) => v == null || (typeof v === 'string' && v.length <= max && !/[<>]/.test(v) && !RE_CONTROLE.test(v));
 const numOk = (v, max) => v == null || (typeof v === 'number' && isFinite(v) && v >= 0 && v <= max);
 function validarMapaNotas(m, max){
   if(m == null) return true;
@@ -277,8 +177,8 @@ function validarEstado(d){
     if(!ehObj(l) || !RE_ID.test(String(l.id))) return 'id de líder inválido';
     if(ids.has(l.id)) return 'id de líder duplicado';
     ids.add(l.id);
-    if(typeof l.nome !== 'string' || !l.nome.trim() || l.nome.length > 200) return 'nome de líder inválido';
-    if(!txtOk(l.equipe, 500) || !txtOk(l.funcao, 200)) return 'texto de líder inválido';
+    if(typeof l.nome !== 'string' || !l.nome.trim() || !identOk(l.nome, 200)) return 'nome de líder inválido';
+    if(!identOk(l.equipe, 500) || !identOk(l.funcao, 200)) return 'texto de líder inválido';
     if(l.foto != null && !/^uploads\/fotos\/[A-Za-z0-9_.-]{1,120}$/.test(l.foto)) return 'foto inválida';
     if(l.qtd != null && !/^[0-9]{0,6}(\.[0-9]+)?$/.test(String(l.qtd))) return 'quantidade inválida';
   }
@@ -314,7 +214,12 @@ function validarEstado(d){
 /* ---------------- SINCRONIZAÇÃO AO VIVO COM A PLANILHA GOOGLE (aba "Técnicos de Monitoramento") ----------------
    Lida via API Sheets v4 com Service Account (escopo readonly) — a planilha NÃO precisa ser pública,
    só compartilhada como "Leitor" com o client_email de GOOGLE_SERVICE_ACCOUNT_JSON. */
-const PLANILHA_MONITORAMENTO_ID = '1szO-QkDju6DGtFSgLwvHoioO5hbN93uowlc0lu4ZqcM';
+async function idDaPlanilha(){
+  const m = await lerMeta(['planilha_monitoramento_id']);
+  const id = m.planilha_monitoramento_id;
+  if(!id || !/^[A-Za-z0-9_-]{20,80}$/.test(id)) throw new Error('ID da planilha ausente ou inválido (meta.planilha_monitoramento_id).');
+  return id;
+}
 const PLANILHA_MONITORAMENTO_ABA = 'Técnicos de Monitoramento';
 const MAPA_COLUNAS_PLANILHA = {
   'ENTREGA RELATÓRIOS': 'rela',
@@ -353,7 +258,7 @@ async function tokenLeituraPlanilha(){
 async function buscarLinhasPlanilhaMonitoramento(){
   const token = await tokenLeituraPlanilha();
   const range = encodeURIComponent(PLANILHA_MONITORAMENTO_ABA);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PLANILHA_MONITORAMENTO_ID}/values/${range}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${await idDaPlanilha()}/values/${range}`;
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if(resp.status === 403){
     const email = credenciaisServiceAccount().client_email;
@@ -405,41 +310,6 @@ async function sincronizarPlanilhaMonitoramento(){
   const { data, error } = await supabase.rpc('aplicar_sync_planilha', { p_notas: [...notas.values()], p_funcoes: [...funcoes.values()] });
   if(error) throw error;
   return { linhasAplicadas, mesesAtingidos: mesesLideresAtingidos.size, ignoradas, alteracoes: data };
-}
-
-/* Preenche só o que estiver vazio (não sobrescreve nota já lançada manualmente) — mesmo comportamento
-   da versão anterior (SQLite). Só roda no seed inicial (banco vazio) ou pelo botão "Importar histórico". */
-async function aplicarHistoricoMonitoramento(){
-  const { data: lideresAtuais } = await supabase.from('lideres').select('id');
-  const idsExistentes = new Set((lideresAtuais||[]).map(r=>r.id));
-  let novos=0, atualizados=0;
-  for(const rec of IMPORT_AVAL){
-    if(!idsExistentes.has(rec.lid)) continue;
-    let mudouEsteMes=false;
-    const { data: metaExistente } = await supabase.from('avaliacoes_meta').select('lider_id').eq('lider_id',rec.lid).eq('mes',rec.mes).maybeSingle();
-    for(const [ind,val] of Object.entries(rec.notas)){
-      const { data: atual } = await supabase.from('avaliacoes_notas').select('gestor').eq('lider_id',rec.lid).eq('mes',rec.mes).eq('indicador',ind).maybeSingle();
-      if(!atual){
-        await supabase.from('avaliacoes_notas').insert({ lider_id:rec.lid, mes:rec.mes, indicador:ind, gestor:val, auto:null });
-        mudouEsteMes=true;
-      } else if(atual.gestor==null){
-        await supabase.from('avaliacoes_notas').update({ gestor:val }).eq('lider_id',rec.lid).eq('mes',rec.mes).eq('indicador',ind);
-        mudouEsteMes=true;
-      }
-    }
-    if(!metaExistente){
-      await supabase.from('avaliacoes_meta').insert({ lider_id:rec.lid, mes:rec.mes, forte:'', melhorar:'', meta:'', obs:'' });
-    }
-    if(mudouEsteMes){ if(metaExistente) atualizados++; else novos++; }
-  }
-  return {novos, atualizados};
-}
-
-async function rodarSeedInicial(){
-  const { error } = await supabase.from('lideres').insert(SEED_LIDERES.map(l=>({ id:l.id, nome:l.nome, equipe:l.equipe, qtd:l.qtd })));
-  if(error) throw error;
-  await aplicarHistoricoMonitoramento();
-  await supabase.from('meta').upsert([{ chave:'avalImportado', valor:'1' }, { chave:'seed_aplicado', valor:'1' }]);
 }
 
 /* ---------------- ESTADO: monta/desmonta o objeto que o front-end usa ---------------- */
@@ -589,8 +459,15 @@ app.get('/api/me', async (req, res) => {
 
 /* Lista padrão dos líderes (botão "Restaurar lista de líderes"). Fica aqui, atrás do login — antes estava embutida
    no HTML público e expunha nomes e equipes de funcionários a qualquer visitante. */
-app.get('/api/lideres-padrao', exigirLogin, (req, res) => {
-  res.json(SEED_LIDERES.map(l => ({ id: l.id, nome: l.nome, equipe: l.equipe, qtd: l.qtd })));
+app.get('/api/lideres-padrao', exigirLogin, async (req, res) => {
+  try{
+    const { data, error } = await supabase.from('lideres_padrao').select('id,nome,equipe,qtd').order('nome');
+    if(error) throw error;
+    res.json(data || []);
+  }catch(e){
+    console.error('Erro ao ler a lista padrão:', e.message);
+    res.status(500).json({ erro: 'Erro ao ler a lista padrão de líderes.' });
+  }
 });
 
 app.get('/api/estado', exigirLogin, async (req, res) => {
@@ -637,14 +514,6 @@ app.post('/api/estado', exigirLogin, async (req, res) => {
   }catch(e){
     console.error('Erro ao salvar estado:', e);
     res.status(500).json({ erro:'Erro ao salvar no banco de dados.' });
-  }
-});
-app.post('/api/importar-historico', exigirLogin, async (req, res) => {
-  try{
-    res.json(await aplicarHistoricoMonitoramento());
-  }catch(e){
-    console.error('Erro ao importar histórico:', e);
-    res.status(500).json({ erro:'Erro ao importar histórico.' });
   }
 });
 app.post('/api/sincronizar-planilha', exigirLogin, async (req, res) => {
@@ -736,17 +605,13 @@ async function iniciar(){
     if(require.main === module) process.exit(1);
     return;
   }
-  const meta = await lerMeta(['seed_aplicado', 'ultima_sync']);
+  const meta = await lerMeta(['ultima_sync']);
   if(count === 0){
-    if(meta.seed_aplicado === '1'){
-      /* Nunca recria os dados sozinho: um banco vazio DEPOIS de já ter tido dados é sinal de perda,
-         e o cadastro inicial esconderia isso. Restaurar: select public.restaurar_snapshot(<id>). */
-      console.error('ALERTA: a tabela de líderes está VAZIA mas o cadastro inicial já foi aplicado antes — possível perda de dados. Nada foi recriado. Restaure um snapshot (tabela estado_snapshots).');
-      await auditar('alerta_banco_vazio');
-      return;
-    }
-    console.log('Banco novo — aplicando cadastro inicial dos 8 líderes e histórico da planilha de Monitoramento...');
-    await rodarSeedInicial();
+    /* O código não carrega mais nenhum cadastro embutido: banco vazio = algo deu errado. Nunca recria dados sozinho.
+       Restaurar: select public.restaurar_snapshot(<id>) (tabela estado_snapshots). */
+    console.error('ALERTA: a tabela de líderes está VAZIA — nada foi recriado. Se isso não era esperado, restaure um snapshot (tabela estado_snapshots).');
+    await auditar('alerta_banco_vazio');
+    return;
   }
   /* Sincroniza com a planilha no máximo 1 vez por hora (cada partida a frio na Vercel chamaria isso). */
   const ultima = Date.parse(meta.ultima_sync || '') || 0;

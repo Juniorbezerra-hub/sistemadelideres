@@ -563,7 +563,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
 function avatarHTML(l, tam){
   tam = tam || 40;
   const estilo = 'width:'+tam+'px;height:'+tam+'px;border-radius:50%;object-fit:cover;flex:0 0 auto;display:inline-flex;vertical-align:middle';
-  if(l.foto) return '<img src="/'+l.foto+'" style="'+estilo+'" alt="">';
+  if(l.foto) return '<img src="/'+esc(l.foto)+'" style="'+estilo+'" alt="">';
   const iniciais = (l.nome||'?').trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase();
   return '<div style="'+estilo+';background:var(--azul);color:#fff;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(tam*0.4)+'px">'+esc(iniciais)+'</div>';
 }
@@ -639,7 +639,7 @@ function carregarAvaliacao(){
   const k=lid+'|'+mes;
   const d=DB.aval[k]||{notas:{},auto:{},forte:'',melhorar:'',meta:'',obs:''};
   let h='<div class="card"><h2>Notas do gestor &nbsp;<span style="font-weight:400;text-transform:none;color:#566779">'+
-    DB.lideres.find(l=>l.id===lid).nome+' — '+mesLabel(mes)+'</span></h2>';
+    esc(DB.lideres.find(l=>l.id===lid).nome)+' — '+mesLabel(mes)+'</span></h2>';
   ['plan','anal','comu'].forEach(p=>{
     h+='<div class="grupo g-'+p+'"><h3 style="margin-top:0"><span class="pill '+PERFIS[p].cls+'">'+PERFIS[p].nome+'</span> <small style="color:#566779;font-weight:400">'+PERFIS[p].txt+'</small></h3>';
     IND.filter(i=>i.perfil===p).forEach(i=>{
@@ -1000,7 +1000,7 @@ function carregarPDI(){
   d.acoes=d.acoes||[{},{},{}];
   const L=DB.lideres.find(l=>l.id===lid);
   let h='<div class="card"><h2>PDI &nbsp;<span style="font-weight:400;text-transform:none;color:#566779">'+
-    L.nome+' — ciclo '+mesLabel(mes)+(L.qtd!==''&&L.qtd!==undefined?' · '+L.qtd+' técnico(s)':'')+'</span></h2>';
+    esc(L.nome)+' — ciclo '+mesLabel(mes)+(L.qtd!==''&&L.qtd!==undefined?' · '+esc(L.qtd)+' técnico(s)':'')+'</span></h2>';
   PDI_BLOCOS.forEach(b=>{
     h+='<div class="grupo" style="border-color:'+b.cor+'"><h3 style="margin-top:0;color:'+b.cor+'">'+b.t+'</h3>';
     b.itens.forEach(i=>{
@@ -1101,7 +1101,7 @@ function carregarSemanal(){
   const el=document.getElementById('formSemanal');
   if(!lid||!mes){ el.innerHTML='<div class="aviso">Selecione o líder e o mês.</div>'; return; }
   const k=lid+'|'+mes; const d=DB.sem[k]||{};
-  let h='<div class="card"><h2>'+DB.lideres.find(l=>l.id===lid).nome+' — '+mesLabel(mes)+'</h2>';
+  let h='<div class="card"><h2>'+esc(DB.lideres.find(l=>l.id===lid).nome)+' — '+mesLabel(mes)+'</h2>';
   for(let s=1;s<=5;s++){
     const w=d['s'+s]||{travou:'',decisao:'',compromisso:'',ok:false};
     h+='<div class="semana"><strong>Semana '+s+'</strong>'+

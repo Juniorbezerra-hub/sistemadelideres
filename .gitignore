@@ -1,6 +1,22 @@
 node_modules/
-backend/.env
 dados.db
 dados.db-wal
 dados.db-shm
 backend/uploads/
+
+# segredos e credenciais: nunca versionar
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+*.p12
+*service-account*.json
+*credenc*.json
+*credenc*.txt
+*senha*.txt
+*SENHA*.txt
+BACKUPS-SISTEMA-LIDERES/
+*.bak
+*.dump
