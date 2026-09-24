@@ -7,15 +7,23 @@
 <style>
 :root{
   --azul:#000ADC; --azul2:#00B9FF; --claro:#eef4fa; --borda:#d3dee8;
-  --verde:#1e8e4e; --amar:#d99b00; --verm:#c0392b; --cinza:#6b7c8c;
-  --plan:#000ADC; --anal:#7b4fa8; --comu:#1e8e4e;
+  --verde:#157a3f; --amar:#8a5f00; --verm:#c0392b; --cinza:#566779; --borda-campo:#7d8d9d;
+  --plan:#000ADC; --anal:#7b4fa8; --comu:#157a3f;
   --jr-azul:#000ADC; --jr-azul-claro:#00B9FF; --jr-laranja:#FF7B00;
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f7fa;color:#1e2b38;font-size:14px}
 header{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;padding:18px 24px}
 header h1{margin:0;font-size:20px;letter-spacing:.3px}
-header p{margin:4px 0 0;opacity:.85;font-size:13px}
+header p{margin:4px 0 0;font-size:13px;max-width:62%}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.skip-link{position:absolute;left:8px;top:-60px;z-index:3000;background:#fff;color:var(--azul);padding:10px 16px;border-radius:5px;font-weight:700;text-decoration:underline}
+.skip-link:focus{top:8px}
+#conteudo:focus{outline:none}
+:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
+header :focus-visible{outline-color:#fff;box-shadow:0 0 0 5px rgba(0,8,110,.9)}
+@media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important;scroll-behavior:auto!important} }
+[role=region][tabindex]{overflow-x:auto}
 .wrap{max-width:1180px;margin:0 auto;padding:18px 24px 60px}
 .tabs{display:flex;gap:4px;border-bottom:2px solid var(--borda);margin-bottom:18px;flex-wrap:wrap}
 .tab{padding:10px 16px;cursor:pointer;border:none;background:none;font-size:14px;font-weight:600;color:var(--cinza);border-bottom:3px solid transparent;margin-bottom:-2px}
@@ -24,11 +32,11 @@ header p{margin:4px 0 0;opacity:.85;font-size:13px}
 .card h2{margin:0 0 12px;font-size:15px;color:var(--azul);text-transform:uppercase;letter-spacing:.5px}
 .card h3{margin:16px 0 8px;font-size:14px;color:#2c3e50}
 label{display:block;font-size:12px;font-weight:600;color:var(--cinza);margin-bottom:4px}
-input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--borda);border-radius:5px;font-family:inherit;font-size:14px;background:#fff}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--borda-campo);border-radius:5px;font-family:inherit;font-size:14px;background:#fff}
 textarea{resize:vertical;min-height:60px}
 button{cursor:pointer;border:none;border-radius:5px;padding:9px 16px;font-weight:600;font-size:13px;font-family:inherit}
 .btn{background:var(--azul);color:#fff}
-.btn:hover{background:var(--azul2)}
+.btn:hover{background:#0007b0}
 .btn:disabled{opacity:.6;cursor:default}
 .btn-sec{background:#fff;color:var(--azul);border:1px solid var(--azul)}
 .btn-del{background:#fff;color:var(--verm);border:1px solid #e7b5ae;padding:4px 10px;font-size:12px}
@@ -50,7 +58,7 @@ tr:hover td{background:#fafcfe}
 .pctwrap10{flex:0 0 220px}
 .bar{height:9px;background:#e8eef4;border-radius:5px;overflow:hidden;min-width:90px}
 .bar i{display:block;height:100%;border-radius:5px}
-.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px}
 .kpi{background:#fff;border:1px solid var(--borda);border-radius:8px;padding:14px;text-align:center}
 .kpi b{display:block;font-size:26px;color:var(--azul)}
 .kpi span{font-size:11px;color:var(--cinza);text-transform:uppercase;letter-spacing:.5px}
@@ -100,19 +108,19 @@ tr:hover td{background:#fafcfe}
 .loginBox label{margin-top:12px}
 .loginBox label:first-of-type{margin-top:0}
 .loginBox .btn{width:100%;margin-top:18px;padding:10px;background:var(--jr-azul)}
-.loginBox .btn:hover{background:var(--jr-azul-claro)}
+.loginBox .btn:hover{background:#0007b0}
 .loginBox form{padding-bottom:32px}
 .loginAcento{height:4px;background:var(--jr-laranja);border-radius:0 0 10px 10px;width:320px;max-width:90vw;position:relative;z-index:1}
 .loginErro{color:var(--verm);font-size:12px;margin-top:10px;display:none}
-.btn-logout{background:none;border:1px solid rgba(255,255,255,.5);color:#fff;padding:6px 12px;font-size:12px;border-radius:5px}
-.btn-logout:hover{background:rgba(255,255,255,.15)}
+.btn-logout{background:rgba(0,8,110,.55);border:1px solid rgba(255,255,255,.7);color:#fff;padding:6px 12px;font-size:12px;border-radius:5px}
+.btn-logout:hover{background:rgba(0,8,110,.85)}
 header{display:flex;justify-content:space-between;align-items:center;gap:16px}
 #avisoConexao{position:fixed;left:0;right:0;bottom:0;background:var(--verm);color:#fff;text-align:center;padding:8px;font-size:13px;z-index:2000;display:none}
 </style>
 </head>
 <body>
 
-<div id="loginScreen">
+<main id="loginScreen">
   <svg class="icone-flutuante" viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" style="top:12%;left:9%;animation-delay:0s" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 13h6M9 17h4"/></svg>
   <svg class="icone-flutuante" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" style="top:64%;left:7%;animation-delay:.8s;animation-duration:7s" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
   <svg class="icone-flutuante" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" style="top:18%;right:8%;animation-delay:.4s;animation-duration:5.5s" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h6"/></svg>
@@ -128,18 +136,19 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
     <h1>Sistema de Evolução de Líderes</h1>
     <p>JR Telecom &middot; acesso restrito</p>
     <form id="formLogin" autocomplete="off">
-      <label>Usuário</label>
+      <label for="loginUser">Usuário</label>
       <input id="loginUser" autocomplete="username">
-      <label>Senha</label>
+      <label for="loginSenha">Senha</label>
       <input id="loginSenha" type="password" autocomplete="current-password">
-      <div class="loginErro" id="loginErro">Usuário ou senha incorretos.</div>
+      <div class="loginErro" id="loginErro" role="alert">Usuário ou senha incorretos.</div>
       <button type="submit" class="btn">Entrar</button>
     </form>
   </div>
   <div class="loginAcento"></div>
-</div>
+</main>
 
 <div id="app" style="display:none">
+<a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
 <header>
   <div>
     <h1>Sistema de Evolução de Líderes</h1>
@@ -148,23 +157,23 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   <button class="btn-logout no-print" onclick="logout()">Sair</button>
 </header>
 
-<div class="wrap">
-  <div class="tabs">
-    <button class="tab on" data-t="painel">Painel</button>
-    <button class="tab" data-t="avaliar">Avaliação Mensal</button>
-    <button class="tab" data-t="pdi">PDI</button>
-    <button class="tab" data-t="semanal">Check-in Semanal</button>
-    <button class="tab" data-t="historico">Histórico &amp; Evolução</button>
-    <button class="tab" data-t="lideres">Líderes</button>
-    <button class="tab" data-t="criterios">Critérios</button>
-    <button class="tab" data-t="geral">Relatório Geral</button>
+<main class="wrap" id="conteudo" tabindex="-1">
+  <div class="tabs" role="tablist" aria-label="Seções do sistema">
+    <button class="tab on" data-t="painel" role="tab" id="tab-painel" aria-controls="t-painel" aria-selected="true">Painel</button>
+    <button class="tab" data-t="avaliar" role="tab" id="tab-avaliar" aria-controls="t-avaliar" aria-selected="false" tabindex="-1">Avaliação Mensal</button>
+    <button class="tab" data-t="pdi" role="tab" id="tab-pdi" aria-controls="t-pdi" aria-selected="false" tabindex="-1">PDI</button>
+    <button class="tab" data-t="semanal" role="tab" id="tab-semanal" aria-controls="t-semanal" aria-selected="false" tabindex="-1">Check-in Semanal</button>
+    <button class="tab" data-t="historico" role="tab" id="tab-historico" aria-controls="t-historico" aria-selected="false" tabindex="-1">Histórico &amp; Evolução</button>
+    <button class="tab" data-t="lideres" role="tab" id="tab-lideres" aria-controls="t-lideres" aria-selected="false" tabindex="-1">Líderes</button>
+    <button class="tab" data-t="criterios" role="tab" id="tab-criterios" aria-controls="t-criterios" aria-selected="false" tabindex="-1">Critérios</button>
+    <button class="tab" data-t="geral" role="tab" id="tab-geral" aria-controls="t-geral" aria-selected="false" tabindex="-1">Relatório Geral</button>
   </div>
 
   <!-- ============ PAINEL ============ -->
-  <div class="tabpane" id="t-painel">
+  <div class="tabpane" id="t-painel" role="tabpanel" aria-labelledby="tab-painel">
     <div class="card no-print">
       <div class="row">
-        <div><label>Mês de referência</label><input type="month" id="mesPainel"></div>
+        <div><label for="mesPainel">Mês de referência</label><input type="month" id="mesPainel"></div>
         <div style="flex:0 0 auto"><button class="btn" onclick="renderPainel()">Atualizar</button></div>
         <div style="flex:0 0 auto"><button class="btn-sec" onclick="window.print()">Gerar PDF / Imprimir</button></div>
       </div>
@@ -172,7 +181,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
     <div id="kpis" class="grid3" style="margin-bottom:16px"></div>
     <div class="card">
       <h2>Ranking do mês</h2>
-      <div id="ranking"></div>
+      <div id="ranking" role="region" tabindex="0" aria-label="Ranking do mês"></div>
     </div>
     <div class="card">
       <h2>Perfil de cada líder</h2>
@@ -186,13 +195,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   </div>
 
   <!-- ============ AVALIAÇÃO ============ -->
-  <div class="tabpane" id="t-avaliar" style="display:none">
+  <div class="tabpane" id="t-avaliar" role="tabpanel" aria-labelledby="tab-avaliar" style="display:none">
     <div class="card">
       <h2>Avaliação mensal — percentual de 0 a 100%</h2>
       <p class="legend">Digite o percentual com até <b>duas casas decimais</b> (ex.: 87,50). A referência de cada faixa está na aba <b>Critérios</b>.</p>
       <div class="row">
-        <div><label>Líder</label><select id="avLider"></select></div>
-        <div><label>Mês</label><input type="month" id="avMes"></div>
+        <div><label for="avLider">Líder</label><select id="avLider"></select></div>
+        <div><label for="avMes">Mês</label><input type="month" id="avMes"></div>
         <div style="flex:0 0 auto"><button class="btn" onclick="carregarAvaliacao()">Carregar</button></div>
       </div>
     </div>
@@ -200,13 +209,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   </div>
 
   <!-- ============ PDI ============ -->
-  <div class="tabpane" id="t-pdi" style="display:none">
+  <div class="tabpane" id="t-pdi" role="tabpanel" aria-labelledby="tab-pdi" style="display:none">
     <div class="card">
       <h2>PDI — Plano de Desenvolvimento Individual</h2>
       <p class="legend">Avaliação de 15 critérios comportamentais e técnicos, nota de <b>0 a 10 com meio ponto</b> (ex.: 8,5 · 9,5). Aplicar a cada <b>6 meses</b> (ou na entrada de um novo líder). É a foto ampla — o mensal é o acompanhamento.</p>
       <div class="row">
-        <div><label>Líder</label><select id="pdLider"></select></div>
-        <div><label>Ciclo (mês de referência)</label><input type="month" id="pdMes"></div>
+        <div><label for="pdLider">Líder</label><select id="pdLider"></select></div>
+        <div><label for="pdMes">Ciclo (mês de referência)</label><input type="month" id="pdMes"></div>
         <div style="flex:0 0 auto"><button class="btn" onclick="carregarPDI()">Carregar</button></div>
       </div>
     </div>
@@ -214,13 +223,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   </div>
 
   <!-- ============ SEMANAL ============ -->
-  <div class="tabpane" id="t-semanal" style="display:none">
+  <div class="tabpane" id="t-semanal" role="tabpanel" aria-labelledby="tab-semanal" style="display:none">
     <div class="card">
       <h2>Check-in semanal (15 minutos)</h2>
       <p class="legend">Ritual curto e fixo. Não é avaliação — é acompanhamento. Três perguntas, sempre as mesmas.</p>
       <div class="row">
-        <div><label>Líder</label><select id="swLider"></select></div>
-        <div><label>Mês</label><input type="month" id="swMes"></div>
+        <div><label for="swLider">Líder</label><select id="swLider"></select></div>
+        <div><label for="swMes">Mês</label><input type="month" id="swMes"></div>
         <div style="flex:0 0 auto"><button class="btn" onclick="carregarSemanal()">Carregar</button></div>
       </div>
     </div>
@@ -228,27 +237,27 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   </div>
 
   <!-- ============ HISTÓRICO ============ -->
-  <div class="tabpane" id="t-historico" style="display:none">
+  <div class="tabpane" id="t-historico" role="tabpanel" aria-labelledby="tab-historico" style="display:none">
     <div class="card">
       <h2>Evolução ao longo dos meses</h2>
       <div class="row no-print">
-        <div><label>Líder</label><select id="hiLider" onchange="renderHistorico()"></select></div>
+        <div><label for="hiLider">Líder</label><select id="hiLider" onchange="renderHistorico()"></select></div>
       </div>
-      <div id="histConteudo"></div>
+      <div id="histConteudo" role="region" tabindex="0" aria-label="Evolução do líder selecionado"></div>
     </div>
   </div>
 
   <!-- ============ LÍDERES ============ -->
-  <div class="tabpane" id="t-lideres" style="display:none">
+  <div class="tabpane" id="t-lideres" role="tabpanel" aria-labelledby="tab-lideres" style="display:none">
     <div class="card">
       <h2>Cadastro de líderes</h2>
       <div class="row">
-        <div><label>Nome</label><input id="novoNome" placeholder="Nome do líder"></div>
-        <div><label>Equipe / turno</label><input id="novaEquipe" placeholder="Ex.: Monitoramento — Turno A"></div>
-        <div><label>Nº de técnicos</label><input id="novoQtd" type="number" min="0" placeholder="0"></div>
+        <div><label for="novoNome">Nome</label><input id="novoNome" placeholder="Nome do líder"></div>
+        <div><label for="novaEquipe">Equipe / turno</label><input id="novaEquipe" placeholder="Ex.: Monitoramento — Turno A"></div>
+        <div><label for="novoQtd">Nº de técnicos</label><input id="novoQtd" type="number" min="0" placeholder="0"></div>
         <div style="flex:0 0 auto"><button class="btn" onclick="addLider()">Adicionar</button></div>
       </div>
-      <div id="listaLideres" style="margin-top:16px"></div>
+      <div id="listaLideres" style="margin-top:16px" role="region" tabindex="0" aria-label="Lista de líderes"></div>
     </div>
     <div class="card">
       <h2>Integração com a planilha de Monitoramento</h2>
@@ -259,7 +268,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
     </div>
     <div class="card">
       <h2>Backup dos dados</h2>
-      <p class="legend">Os dados ficam salvos no banco de dados do servidor (<code>dados.db</code>). Exporte um backup toda vez que fechar o mês — ou antes de qualquer manutenção.</p>
+      <p class="legend">Os dados ficam salvos no banco de dados na nuvem (Supabase). Exporte um backup toda vez que fechar o mês — ou antes de qualquer manutenção.</p>
       <div class="acoes">
         <button class="btn-sec" onclick="exportar()">Exportar backup (.json)</button>
         <button class="btn-sec" onclick="document.getElementById('imp').click()">Importar backup</button>
@@ -270,18 +279,20 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   </div>
 
   <!-- ============ CRITÉRIOS ============ -->
-  <div class="tabpane" id="t-criterios" style="display:none">
+  <div class="tabpane" id="t-criterios" role="tabpanel" aria-labelledby="tab-criterios" style="display:none">
     <div class="card">
       <h2>Escala da avaliação mensal — percentual de 0 a 100%</h2>
       <p class="legend">A pergunta que o percentual responde é: <b>de tudo que esse indicador exige, quanto o líder está entregando?</b> Aceita duas casas decimais — útil quando o número vem de um cálculo real (pontualidade, premiação, relatórios entregues no prazo).</p>
+      <div role="region" tabindex="0" aria-label="Escala de classificação">
       <table>
-        <tr><th style="width:100px">Faixa</th><th style="width:150px">Classificação</th><th>O que significa</th><th>Ação do gestor</th></tr>
+        <tr><th scope="col" style="width:100px">Faixa</th><th scope="col" style="width:150px">Classificação</th><th scope="col">O que significa</th><th scope="col">Ação do gestor</th></tr>
         <tr><td class="nota n-baixo">0 – 39%</td><td style="color:#c0392b;font-weight:700">Crítico</td><td>Não atende. Falha recorrente, gera retrabalho ou risco para a operação.</td><td>Plano de ação formal com prazo de 30 dias</td></tr>
-        <tr><td class="nota n-baixo">40 – 59%</td><td style="color:#e07b39;font-weight:700">Abaixo do esperado</td><td>Faz, mas com falhas frequentes ou só quando cobrado.</td><td>Treinamento dirigido + acompanhamento semanal</td></tr>
-        <tr><td class="nota n-medio">60 – 79%</td><td style="color:#d99b00;font-weight:700">Atende o esperado</td><td>Cumpre o combinado, sem se destacar.</td><td>Definir 1 meta específica de evolução</td></tr>
-        <tr><td class="nota n-alto">80 – 94%</td><td style="color:#2e9e6b;font-weight:700">Acima do esperado</td><td>Consistente, antecipa problemas.</td><td>Dar mais autonomia e ampliar escopo</td></tr>
-        <tr><td class="nota n-alto">95 – 100%</td><td style="color:#1e8e4e;font-weight:700">Referência</td><td>Ensina os outros, o padrão dele vira modelo.</td><td>Transformar em multiplicador / mentor</td></tr>
+        <tr><td class="nota n-baixo">40 – 59%</td><td style="color:#b3541a;font-weight:700">Abaixo do esperado</td><td>Faz, mas com falhas frequentes ou só quando cobrado.</td><td>Treinamento dirigido + acompanhamento semanal</td></tr>
+        <tr><td class="nota n-medio">60 – 79%</td><td style="color:#8a5f00;font-weight:700">Atende o esperado</td><td>Cumpre o combinado, sem se destacar.</td><td>Definir 1 meta específica de evolução</td></tr>
+        <tr><td class="nota n-alto">80 – 94%</td><td style="color:#1a7d52;font-weight:700">Acima do esperado</td><td>Consistente, antecipa problemas.</td><td>Dar mais autonomia e ampliar escopo</td></tr>
+        <tr><td class="nota n-alto">95 – 100%</td><td style="color:#157a3f;font-weight:700">Referência</td><td>Ensina os outros, o padrão dele vira modelo.</td><td>Transformar em multiplicador / mentor</td></tr>
       </table>
+      </div>
       <div class="aviso" style="margin-top:12px"><b>Cuidado com a inflação.</b> Percentual dá a sensação de precisão e puxa todo mundo para 85–90%. Só use 95% ou mais quando a descrição de "nota máxima" de cada indicador (na tabela abaixo) for verdadeira sem exceção no mês.</div>
     </div>
     <div class="card" id="criteriosInd"></div>
@@ -310,13 +321,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   </div>
 
   <!-- ============ RELATÓRIO GERAL ============ -->
-  <div class="tabpane" id="t-geral" style="display:none">
+  <div class="tabpane" id="t-geral" role="tabpanel" aria-labelledby="tab-geral" style="display:none">
     <div class="card">
       <h2>Panorama de registros do sistema</h2>
       <p class="legend">Contagens baseadas só no que está de fato salvo no banco — nenhum número aqui é estimado.</p>
       <div class="row no-print">
-        <div><label>De (mês)</label><input type="month" id="geralDe"></div>
-        <div><label>Até (mês)</label><input type="month" id="geralAte"></div>
+        <div><label for="geralDe">De (mês)</label><input type="month" id="geralDe"></div>
+        <div><label for="geralAte">Até (mês)</label><input type="month" id="geralAte"></div>
         <div style="flex:0 0 auto"><button class="btn" onclick="renderRelatorioGeral()">Atualizar</button></div>
         <div style="flex:0 0 auto"><button class="btn-sec" onclick="document.getElementById('geralDe').value='';document.getElementById('geralAte').value='';renderRelatorioGeral()">Limpar filtro</button></div>
       </div>
@@ -324,20 +335,21 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
     </div>
     <div class="card">
       <h2>Por líder</h2>
-      <div id="tabelaLideresGeral"></div>
+      <div id="tabelaLideresGeral" role="region" tabindex="0" aria-label="Registros por líder"></div>
     </div>
     <div class="card">
       <h2>Por mês</h2>
-      <div id="tabelaMesesGeral"></div>
+      <div id="tabelaMesesGeral" role="region" tabindex="0" aria-label="Registros por mês"></div>
     </div>
   </div>
-</div>
+</main>
 </div><!-- /app -->
 
 <div id="relatorioImpressao"></div>
 
 <div id="modalDemonstrativo" class="no-print">
-  <div class="modalDemonstrativoCaixa">
+  <div class="modalDemonstrativoCaixa" role="dialog" aria-modal="true" aria-labelledby="modalDemoTitulo" tabindex="-1">
+    <h2 id="modalDemoTitulo" class="sr-only">Prévia do Demonstrativo de Desempenho</h2>
     <p class="legend" style="margin-top:0">Confira os dados antes de gerar o PDF. Você pode ajustar a função e a observação abaixo.</p>
     <div id="demoConteudoPrevia" style="border:1px solid #d3dee8;border-radius:8px;padding:16px"></div>
     <div class="acoes" style="margin-top:16px">
@@ -347,7 +359,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   </div>
 </div>
 
-<div id="avisoConexao">Não foi possível falar com o servidor. Verifique se o backend (INICIAR_SISTEMA.bat) está rodando.</div>
+<div id="avisoConexao" role="alert">Não foi possível falar com o servidor. Verifique sua conexão com a internet e tente novamente.</div>
 
 <script>
 /* Escapa texto digitado antes de inserir em HTML via innerHTML — nunca confiar em texto
@@ -372,7 +384,7 @@ const IND = [
 const PERFIS = {
   plan:{nome:'Planejador', cls:'p-plan', cor:'#1565a8', txt:'Organiza, antecipa, controla prazo e recurso'},
   anal:{nome:'Analítico',  cls:'p-anal', cor:'#7b4fa8', txt:'Aprofunda, valida dado, garante o padrão técnico'},
-  comu:{nome:'Comunicador',cls:'p-comu', cor:'#1e8e4e', txt:'Alinha, engaja, resolve conflito, desenvolve gente'}
+  comu:{nome:'Comunicador',cls:'p-comu', cor:'#157a3f', txt:'Alinha, engaja, resolve conflito, desenvolve gente'}
 };
 /* --- PDI: 15 critérios, nota 0 a 10 --- */
 const PDI_BLOCOS=[
@@ -390,7 +402,7 @@ const PDI_BLOCOS=[
  {t:'Conduta e Disciplina', cor:'#c0392b', itens:[
    {id:'q09', nome:'Pontualidade e assiduidade na empresa'},
    {id:'q10', nome:'Apresenta caráter (atitudes éticas e de respeito)'}]},
- {t:'Relacionamento e Desenvolvimento', cor:'#1e8e4e', itens:[
+ {t:'Relacionamento e Desenvolvimento', cor:'#157a3f', itens:[
    {id:'q12', nome:'Tem bom relacionamento interpessoal'},
    {id:'q13', nome:'Sabe ouvir e se comunica bem com as pessoas'},
    {id:'q14', nome:'É participativo e busca se desenvolver na organização'},
@@ -400,9 +412,9 @@ const PDI_ITENS=PDI_BLOCOS.flatMap(b=>b.itens);
 function corPDI(n){ return faixaPDI(n).c; }
 function fmtNota(n){ return (+n).toFixed(1).replace('.',','); }
 function faixaPDI(n){
-  if(n>=9) return {t:'Referência',        c:'#1e8e4e', a:'Preparar para assumir mais escopo ou formar outros'};
-  if(n>=7) return {t:'Dentro do esperado',c:'#2e9e6b', a:'Manter e escolher 1 ponto para subir de nível'};
-  if(n>=5) return {t:'Precisa desenvolver',c:'#d99b00',a:'Ação de desenvolvimento com prazo definido'};
+  if(n>=9) return {t:'Referência',        c:'#157a3f', a:'Preparar para assumir mais escopo ou formar outros'};
+  if(n>=7) return {t:'Dentro do esperado',c:'#1a7d52', a:'Manter e escolher 1 ponto para subir de nível'};
+  if(n>=5) return {t:'Precisa desenvolver',c:'#8a5f00',a:'Ação de desenvolvimento com prazo definido'};
   return       {t:'Crítico',             c:'#c0392b', a:'Plano de ação formal, revisão em 30 dias'};
 }
 
@@ -423,12 +435,12 @@ function mesLabel(m){ if(!m) return ''; const [a,b]=m.split('-');
   return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+b-1]+'/'+a; }
 /* Escala mensal: percentual 0 a 100% */
 function cls(n){ return n>=80?'n-alto':n>=60?'n-medio':'n-baixo'; }
-function corN(n){ return n>=80?'#1e8e4e':n>=60?'#d99b00':'#c0392b'; }
+function corN(n){ return n>=80?'#157a3f':n>=60?'#8a5f00':'#c0392b'; }
 function faixaPct(n){
-  if(n>=95) return {t:'Referência',           c:'#1e8e4e', a:'Transformar em multiplicador — ele treina os outros'};
-  if(n>=80) return {t:'Acima do esperado',    c:'#2e9e6b', a:'Dar mais autonomia e ampliar escopo'};
-  if(n>=60) return {t:'Atende o esperado',    c:'#d99b00', a:'Definir 1 meta específica de evolução'};
-  if(n>=40) return {t:'Abaixo do esperado',   c:'#e07b39', a:'Treinamento dirigido + acompanhamento semanal'};
+  if(n>=95) return {t:'Referência',           c:'#157a3f', a:'Transformar em multiplicador — ele treina os outros'};
+  if(n>=80) return {t:'Acima do esperado',    c:'#1a7d52', a:'Dar mais autonomia e ampliar escopo'};
+  if(n>=60) return {t:'Atende o esperado',    c:'#8a5f00', a:'Definir 1 meta específica de evolução'};
+  if(n>=40) return {t:'Abaixo do esperado',   c:'#b3541a', a:'Treinamento dirigido + acompanhamento semanal'};
   return       {t:'Crítico',                  c:'#c0392b', a:'Plano de ação formal com prazo de 30 dias'};
 }
 function pct(n){ return (+(n||0)).toFixed(2).replace('.',',')+'%'; }
@@ -482,7 +494,7 @@ document.getElementById('formLogin').addEventListener('submit', async function(e
       erroEl.style.display='block';
     }
   }catch(err){
-    erroEl.textContent='Não foi possível conectar ao servidor. Confirme se o sistema está rodando (INICIAR_SISTEMA.bat).';
+    erroEl.textContent='Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.';
     erroEl.style.display='block';
   } finally {
     botao.disabled=false;
@@ -490,9 +502,16 @@ document.getElementById('formLogin').addEventListener('submit', async function(e
 });
 
 /* ---------------- ABAS ---------------- */
+document.querySelectorAll('.tab').forEach((b,i,todas)=>{ b.onkeydown=e=>{
+  const dir = e.key==='ArrowRight'?1 : e.key==='ArrowLeft'?-1 : e.key==='Home'?'ini' : e.key==='End'?'fim' : 0;
+  if(!dir) return;
+  e.preventDefault();
+  const alvo = dir==='ini'?todas[0] : dir==='fim'?todas[todas.length-1] : todas[(i+dir+todas.length)%todas.length];
+  alvo.focus(); alvo.click();
+}; });
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on');
+  document.querySelectorAll('.tab').forEach(x=>{ x.classList.remove('on'); x.setAttribute('aria-selected','false'); x.tabIndex=-1; });
+  b.classList.add('on'); b.setAttribute('aria-selected','true'); b.tabIndex=0;
   document.querySelectorAll('.tabpane').forEach(p=>p.style.display='none');
   document.getElementById('t-'+b.dataset.t).style.display='block';
   if(b.dataset.t==='painel') renderPainel();
@@ -552,7 +571,7 @@ function removerLider(id){
 function renderLideres(){
   const el=document.getElementById('listaLideres');
   if(!DB.lideres.length){ el.innerHTML='<div class="vazio">Nenhum líder cadastrado ainda. Comece adicionando acima.</div>'; return; }
-  el.innerHTML='<table><tr><th></th><th>Líder</th><th>Equipe / turno</th><th>Técnicos</th><th>Avaliações</th><th></th></tr>'+
+  el.innerHTML='<table><tr><th scope="col"><span class="sr-only">Foto</span></th><th scope="col">Líder</th><th scope="col">Equipe / turno</th><th scope="col">Técnicos</th><th scope="col">Avaliações</th><th scope="col"><span class="sr-only">Ações</span></th></tr>'+
     DB.lideres.map(l=>{
       const n=Object.keys(DB.aval).filter(k=>k.startsWith(l.id+'|')).length;
       return '<tr><td>'+avatarHTML(l,36)+'</td><td><b>'+esc(l.nome)+'</b></td><td>'+esc(l.equipe||'—')+'</td><td>'+esc(l.qtd||'—')+
@@ -579,31 +598,31 @@ function carregarAvaliacao(){
   if(!lid||!mes){ el.innerHTML='<div class="aviso">Selecione o líder e o mês.</div>'; return; }
   const k=lid+'|'+mes;
   const d=DB.aval[k]||{notas:{},auto:{},forte:'',melhorar:'',meta:'',obs:''};
-  let h='<div class="card"><h2>Notas do gestor &nbsp;<span style="font-weight:400;text-transform:none;color:#6b7c8c">'+
+  let h='<div class="card"><h2>Notas do gestor &nbsp;<span style="font-weight:400;text-transform:none;color:#566779">'+
     DB.lideres.find(l=>l.id===lid).nome+' — '+mesLabel(mes)+'</span></h2>';
   ['plan','anal','comu'].forEach(p=>{
-    h+='<div class="grupo g-'+p+'"><h3 style="margin-top:0"><span class="pill '+PERFIS[p].cls+'">'+PERFIS[p].nome+'</span> <small style="color:#6b7c8c;font-weight:400">'+PERFIS[p].txt+'</small></h3>';
+    h+='<div class="grupo g-'+p+'"><h3 style="margin-top:0"><span class="pill '+PERFIS[p].cls+'">'+PERFIS[p].nome+'</span> <small style="color:#566779;font-weight:400">'+PERFIS[p].txt+'</small></h3>';
     IND.filter(i=>i.perfil===p).forEach(i=>{
       const v=d.notas[i.id];
       h+='<div class="ind"><div class="nome"><b>'+i.nome+'</b><small>'+i.desc+'</small></div>'+
         '<div class="pctwrap">'+
-          '<div style="flex:0 0 96px"><label style="margin:0 0 2px">Gestor %</label>'+
-          '<input type="number" min="0" max="100" step="0.01" placeholder="—" value="'+(v==null?'':v)+'" '+
+          '<div style="flex:0 0 96px"><label for="g_'+i.id+'" style="margin:0 0 2px">Gestor %</label>'+
+          '<input id="g_'+i.id+'" aria-label="Gestor % — '+i.nome+'" type="number" min="0" max="100" step="0.01" placeholder="—" value="'+(v==null?'':v)+'" '+
           'onchange="setNota(\''+k+'\',\''+i.id+'\',this.value)" oninput="preBar(\''+i.id+'\',this.value)"></div>'+
           '<div style="flex:1;min-width:80px"><div class="bar" id="bar_'+i.id+'"><i style="width:'+(v==null?0:v)+'%;background:'+(v==null?'#c3d2df':corN(v))+'"></i></div>'+
-          '<div id="lb_'+i.id+'" style="font-size:12px;font-weight:700;margin-top:3px;color:'+(v==null?'#6b7c8c':corN(v))+'">'+(v==null?'—':pct(v))+'</div></div>'+
+          '<div id="lb_'+i.id+'" style="font-size:12px;font-weight:700;margin-top:3px;color:'+(v==null?'#566779':corN(v))+'">'+(v==null?'—':pct(v))+'</div></div>'+
         '</div>'+
-        '<div style="flex:0 0 108px"><label style="margin:0 0 2px">Autoavaliação %</label>'+
-        '<input type="number" min="0" max="100" step="0.01" placeholder="—" value="'+(d.auto[i.id]==null?'':d.auto[i.id])+'" '+
+        '<div style="flex:0 0 108px"><label for="a_'+i.id+'" style="margin:0 0 2px">Autoavaliação %</label>'+
+        '<input id="a_'+i.id+'" aria-label="Autoavaliação % — '+i.nome+'" type="number" min="0" max="100" step="0.01" placeholder="—" value="'+(d.auto[i.id]==null?'':d.auto[i.id])+'" '+
         'onchange="setAuto(\''+k+'\',\''+i.id+'\',this.value)"></div></div>';
     });
     h+='</div>';
   });
   h+='<h3>Fechamento da conversa</h3>'+
-     '<div style="margin-bottom:10px"><label>Ponto mais forte do mês</label><textarea onchange="setCampo(\''+k+'\',\'forte\',this.value)">'+esc(d.forte||'')+'</textarea></div>'+
-     '<div style="margin-bottom:10px"><label>O que precisa melhorar</label><textarea onchange="setCampo(\''+k+'\',\'melhorar\',this.value)">'+esc(d.melhorar||'')+'</textarea></div>'+
-     '<div style="margin-bottom:10px"><label>Meta única para o próximo mês (específica e mensurável)</label><textarea onchange="setCampo(\''+k+'\',\'meta\',this.value)">'+esc(d.meta||'')+'</textarea></div>'+
-     '<div><label>Observações</label><textarea onchange="setCampo(\''+k+'\',\'obs\',this.value)">'+esc(d.obs||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label for="av_forte">Ponto mais forte do mês</label><textarea id="av_forte" onchange="setCampo(\''+k+'\',\'forte\',this.value)">'+esc(d.forte||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label for="av_melhorar">O que precisa melhorar</label><textarea id="av_melhorar" onchange="setCampo(\''+k+'\',\'melhorar\',this.value)">'+esc(d.melhorar||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label for="av_meta">Meta única para o próximo mês (específica e mensurável)</label><textarea id="av_meta" onchange="setCampo(\''+k+'\',\'meta\',this.value)">'+esc(d.meta||'')+'</textarea></div>'+
+     '<div><label for="av_obs">Observações</label><textarea id="av_obs" onchange="setCampo(\''+k+'\',\'obs\',this.value)">'+esc(d.obs||'')+'</textarea></div>'+
      '<div class="acoes"><button class="btn" onclick="carregarAvaliacao();renderPainel();alert(\'Avaliação salva.\')">Salvar avaliação</button>'+
      '<button class="btn-sec" onclick="gerarRelatorioAvaliacao(\''+k+'\')">Gerar PDF desta avaliação</button>'+
      '<button class="btn-sec" onclick="abrirPreviaDemonstrativo(\''+k+'\')">Gerar Demonstrativo de Desempenho</button></div>'+
@@ -615,7 +634,7 @@ function preBar(i,v){
   const n=Math.max(0,Math.min(100,+v||0));
   const b=document.getElementById('bar_'+i), lb=document.getElementById('lb_'+i);
   if(b) b.firstChild.style.cssText='width:'+n+'%;background:'+corN(n);
-  if(lb){ lb.textContent=v===''?'—':pct(n); lb.style.color=v===''?'#6b7c8c':corN(n); }
+  if(lb){ lb.textContent=v===''?'—':pct(n); lb.style.color=v===''?'#566779':corN(n); }
 }
 function setNota(k,i,n){
   DB.aval[k]=DB.aval[k]||{notas:{},auto:{},forte:'',melhorar:'',meta:'',obs:''};
@@ -640,18 +659,18 @@ function resumoAv(k){
   const gaps=IND.filter(i=>d.notas[i.id]!=null&&d.auto[i.id]!=null&&Math.abs(d.notas[i.id]-d.auto[i.id])>=20);
   el.innerHTML='<div style="background:var(--claro);border-radius:6px;padding:12px">'+
     '<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">'+
-      '<div><span style="font-size:11px;color:#6b7c8c;text-transform:uppercase">Desempenho geral</span><br>'+
+      '<div><span style="font-size:11px;color:#566779;text-transform:uppercase">Desempenho geral</span><br>'+
         '<b style="font-size:26px;color:'+f.c+'">'+(preench?pct(m):'—')+'</b></div>'+
-      '<div><span style="font-size:11px;color:#6b7c8c;text-transform:uppercase">Classificação</span><br>'+
+      '<div><span style="font-size:11px;color:#566779;text-transform:uppercase">Classificação</span><br>'+
         '<b style="color:'+f.c+';font-size:15px">'+(preench?f.t:'—')+'</b><br>'+
-        '<span style="font-size:12px;color:#6b7c8c">'+f.a+'</span></div>'+
+        '<span style="font-size:12px;color:#566779">'+f.a+'</span></div>'+
       '<div style="flex:1;min-width:190px">'+['plan','anal','comu'].map(p=>{
         const v=media(d.notas,p)||0;
         return '<div style="display:flex;justify-content:space-between;font-size:11px"><span>'+PERFIS[p].nome+'</span><b>'+pct(v)+'</b></div>'+
           '<div class="bar" style="height:6px;margin-bottom:5px"><i style="width:'+v+'%;background:'+PERFIS[p].cor+'"></i></div>';
       }).join('')+'</div></div>'+
-    '<div style="font-size:12px;color:#6b7c8c;margin-top:8px">'+preench+' de 9 indicadores preenchidos</div>'+
-    (gaps.length?'<div style="margin-top:8px;font-size:13px;color:#a06800"><b>⚠ Percepção divergente</b> (20 pontos ou mais) em: <b>'+
+    '<div style="font-size:12px;color:#566779;margin-top:8px">'+preench+' de 9 indicadores preenchidos</div>'+
+    (gaps.length?'<div style="margin-top:8px;font-size:13px;color:#7a5200"><b>⚠ Percepção divergente</b> (20 pontos ou mais) em: <b>'+
       gaps.map(g=>g.nome+' — você '+g0(d,g)+'</b>').join('; ')+'. Esse é o assunto principal da conversa.</div>':'')+
     '</div>';
 }
@@ -690,29 +709,29 @@ function gerarRelatorioAvaliacao(k){
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'+
         avatarHTML(l,48)+
         '<div><div style="font-size:16px;font-weight:700">'+esc(l.nome)+'</div>'+
-        '<div style="font-size:12px;color:#6b7c8c">'+esc(l.equipe||'')+' · '+mesLabel(mes)+'</div></div>'+
+        '<div style="font-size:12px;color:#566779">'+esc(l.equipe||'')+' · '+mesLabel(mes)+'</div></div>'+
       '</div>'+
       '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">'+
         '<div style="flex:1;min-width:140px;background:#eef4fa;border-radius:8px;padding:12px;text-align:center">'+
-          '<div style="font-size:11px;color:#6b7c8c;text-transform:uppercase">Desempenho geral</div>'+
+          '<div style="font-size:11px;color:#566779;text-transform:uppercase">Desempenho geral</div>'+
           '<div style="font-size:26px;font-weight:700;color:'+f.c+'">'+(preenchidos?pct(m):'—')+'</div>'+
           '<div style="font-size:12px;color:'+f.c+';font-weight:700">'+(preenchidos?f.t:'—')+'</div>'+
         '</div>'+
         '<div style="flex:2;min-width:220px">'+
-          '<div style="font-size:11px;color:#6b7c8c;text-transform:uppercase;margin-bottom:6px">Perfil</div>'+
+          '<div style="font-size:11px;color:#566779;text-transform:uppercase;margin-bottom:6px">Perfil</div>'+
           perfis+
         '</div>'+
       '</div>'+
       '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">'+
-        '<tr style="background:#000ADC;color:#fff"><th style="padding:6px 8px;text-align:left">Indicador</th><th style="padding:6px 8px">Gestor</th><th style="padding:6px 8px">Autoavaliação</th></tr>'+
+        '<tr style="background:#000ADC;color:#fff"><th scope="col" style="padding:6px 8px;text-align:left">Indicador</th><th scope="col" style="padding:6px 8px">Gestor</th><th scope="col" style="padding:6px 8px">Autoavaliação</th></tr>'+
         linhasTabela+
       '</table>'+
-      (gaps.length ? '<div style="background:#fff8e5;border-left:3px solid #d99b00;padding:8px 10px;margin-bottom:14px;font-size:12px">Percepção divergente (20 p.p. ou mais) em: '+gaps.map(g=>g.nome).join(', ')+'.</div>' : '<div style="margin-bottom:14px"></div>')+
+      (gaps.length ? '<div style="background:#fff8e5;border-left:3px solid #8a5f00;padding:8px 10px;margin-bottom:14px;font-size:12px">Percepção divergente (20 p.p. ou mais) em: '+gaps.map(g=>g.nome).join(', ')+'.</div>' : '<div style="margin-bottom:14px"></div>')+
       bloco('Ponto mais forte', d.forte)+
       bloco('O que precisa melhorar', d.melhorar)+
       bloco('Meta para o próximo mês', d.meta)+
       bloco('Observações', d.obs)+
-      '<div style="font-size:11px;color:#6b7c8c;text-align:center;margin-top:10px">Gerado em '+new Date().toLocaleString('pt-BR')+'</div>'+
+      '<div style="font-size:11px;color:#566779;text-align:center;margin-top:10px">Gerado em '+new Date().toLocaleString('pt-BR')+'</div>'+
     '</div>';
   document.getElementById('relatorioImpressao').innerHTML = html;
   document.body.classList.add('imprimindo-relatorio');
@@ -754,7 +773,7 @@ function gerarRelatorioPDI(k){
     '<td style="padding:6px 8px;border-bottom:1px solid #eee">'+esc(a.como||'—')+'</td>'+
     '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">'+(a.prazo?new Date(a.prazo+'T00:00:00').toLocaleDateString('pt-BR'):'—')+'</td>'+
     '<td style="padding:6px 8px;border-bottom:1px solid #eee">'+esc(a.resp||'—')+'</td></tr>'
-  ).join('') : '<tr><td colspan="4" style="padding:8px;text-align:center;color:#6b7c8c">Nenhuma ação registrada.</td></tr>';
+  ).join('') : '<tr><td colspan="4" style="padding:8px;text-align:center;color:#566779">Nenhuma ação registrada.</td></tr>';
   const html =
     '<div class="folha-timbrada">'+
       '<div style="font-size:11px;letter-spacing:1px;color:#000ADC;font-weight:700;text-transform:uppercase">Sistema de Evolução de Líderes</div>'+
@@ -762,32 +781,32 @@ function gerarRelatorioPDI(k){
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'+
         avatarHTML(l,48)+
         '<div><div style="font-size:16px;font-weight:700">'+esc(l.nome)+'</div>'+
-        '<div style="font-size:12px;color:#6b7c8c">'+esc(l.equipe||'')+' · ciclo '+mesLabel(mes)+'</div></div>'+
+        '<div style="font-size:12px;color:#566779">'+esc(l.equipe||'')+' · ciclo '+mesLabel(mes)+'</div></div>'+
       '</div>'+
       '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">'+
         '<div style="flex:1;min-width:140px;background:#eef4fa;border-radius:8px;padding:12px;text-align:center">'+
-          '<div style="font-size:11px;color:#6b7c8c;text-transform:uppercase">Média geral PDI</div>'+
+          '<div style="font-size:11px;color:#566779;text-transform:uppercase">Média geral PDI</div>'+
           '<div style="font-size:26px;font-weight:700;color:'+f.c+'">'+(preenchidos?fmtNota(m)+'/10':'—')+'</div>'+
           '<div style="font-size:12px;color:'+f.c+';font-weight:700">'+(preenchidos?f.t:'—')+'</div>'+
         '</div>'+
         '<div style="flex:2;min-width:220px">'+barrasBlocos+'</div>'+
       '</div>'+
       '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">'+
-        '<tr style="background:#000ADC;color:#fff"><th style="padding:6px 8px;text-align:left">Critério</th><th style="padding:6px 8px">Gestor</th><th style="padding:6px 8px">Autoavaliação</th></tr>'+
+        '<tr style="background:#000ADC;color:#fff"><th scope="col" style="padding:6px 8px;text-align:left">Critério</th><th scope="col" style="padding:6px 8px">Gestor</th><th scope="col" style="padding:6px 8px">Autoavaliação</th></tr>'+
         linhasTabela+
       '</table>'+
-      (gaps.length ? '<div style="background:#fff8e5;border-left:3px solid #d99b00;padding:8px 10px;margin-bottom:14px;font-size:12px">Percepção divergente (3 pontos ou mais, na escala de 0 a 10) em: '+gaps.map(g=>g.nome).join(', ')+'.</div>' : '<div style="margin-bottom:14px"></div>')+
+      (gaps.length ? '<div style="background:#fff8e5;border-left:3px solid #8a5f00;padding:8px 10px;margin-bottom:14px;font-size:12px">Percepção divergente (3 pontos ou mais, na escala de 0 a 10) em: '+gaps.map(g=>g.nome).join(', ')+'.</div>' : '<div style="margin-bottom:14px"></div>')+
       '<div style="font-size:14px;font-weight:700;color:#1e2b38;margin-bottom:8px">Plano de desenvolvimento</div>'+
       bloco('Pontos fortes a preservar', d.fortes)+
       bloco('Pontos a desenvolver', d.desenvolver)+
       '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">'+
-        '<tr style="background:#000ADC;color:#fff"><th style="padding:6px 8px;text-align:left">O que será feito</th><th style="padding:6px 8px;text-align:left">Como / com que apoio</th><th style="padding:6px 8px">Prazo</th><th style="padding:6px 8px;text-align:left">Responsável</th></tr>'+
+        '<tr style="background:#000ADC;color:#fff"><th scope="col" style="padding:6px 8px;text-align:left">O que será feito</th><th scope="col" style="padding:6px 8px;text-align:left">Como / com que apoio</th><th scope="col" style="padding:6px 8px">Prazo</th><th scope="col" style="padding:6px 8px;text-align:left">Responsável</th></tr>'+
         linhasAcoes+
       '</table>'+
       '<div style="font-size:11px;color:#000ADC;font-weight:700;text-transform:uppercase;margin-bottom:2px">Próxima revisão do PDI</div>'+
       '<div style="font-size:13px;margin-bottom:10px">'+(d.revisao?new Date(d.revisao+'T00:00:00').toLocaleDateString('pt-BR'):'—')+'</div>'+
       bloco('Compromisso assumido pelo líder', d.compromisso)+
-      '<div style="font-size:11px;color:#6b7c8c;text-align:center;margin-top:10px">Gerado em '+new Date().toLocaleString('pt-BR')+'</div>'+
+      '<div style="font-size:11px;color:#566779;text-align:center;margin-top:10px">Gerado em '+new Date().toLocaleString('pt-BR')+'</div>'+
     '</div>';
   document.getElementById('relatorioImpressao').innerHTML = html;
   document.body.classList.add('imprimindo-relatorio');
@@ -841,17 +860,18 @@ function corpoDemonstrativo(l, mes, d, opts){
   const dataBR = opts.data!=null ? opts.data : new Date().toLocaleDateString('pt-BR');
   const obsValor = opts.observacao!=null ? opts.observacao : textoObservacaoPadrao(d);
   const rotulo = 'color:#0070C0;text-decoration:underline;font-weight:700';
-  const campo = (id, valor, largura) => '<input id="'+id+'" value="'+String(valor||'').replace(/"/g,'&quot;')+'" style="border:none;border-bottom:1px solid #999;font-size:13px;width:'+(largura||'70%')+';padding:2px 0">';
+  const rotulosCampo = {demoColaboradorInput:'Colaborador', demoUnidadeInput:'Unidade', demoFuncaoInput:'Função', demoReferenciaInput:'Referência'};
+  const campo = (id, valor, largura) => '<input id="'+id+'" aria-label="'+(rotulosCampo[id]||'')+'" value="'+String(valor||'').replace(/"/g,'&quot;')+'" style="border:none;border-bottom:1px solid #999;font-size:13px;width:'+(largura||'70%')+';padding:2px 0">';
 
   const colaboradorHtml = '<span style="'+rotulo+'">COLABORADOR:</span> '+(editavel ? campo('demoColaboradorInput', colaboradorValor) : esc(colaboradorValor||'—'));
   const unidadeHtml = '<span style="'+rotulo+'">UNIDADE:</span> '+(editavel ? campo('demoUnidadeInput', unidadeValor) : esc(unidadeValor||'—'));
   const funcaoHtml = '<span style="'+rotulo+'">FUNÇÃO:</span> '+(editavel ? campo('demoFuncaoInput', funcaoValor, '65%') : esc(funcaoValor||'—'));
   const referenciaHtml = '<span style="'+rotulo+'">REFERÊNCIA:</span> '+(editavel ? campo('demoReferenciaInput', referenciaValor, '55%') : esc(referenciaValor||'—'));
   const dataHtml = editavel
-    ? 'DATA: <input id="demoDataInput" type="date" value="'+(opts.dataIso || new Date().toISOString().slice(0,10))+'" style="border:1px solid #ccc;border-radius:4px;padding:3px 6px;font-size:13px">'
+    ? 'DATA: <input id="demoDataInput" aria-label="Data" type="date" value="'+(opts.dataIso || new Date().toISOString().slice(0,10))+'" style="border:1px solid #ccc;border-radius:4px;padding:3px 6px;font-size:13px">'
     : 'DATA: '+esc(dataBR);
   const obsHtml = editavel
-    ? '<textarea id="demoObsInput" style="width:100%;min-height:70px;font-family:Arial,sans-serif;font-size:13px;border:1px solid #ccc;border-radius:4px;padding:6px;margin-top:4px;box-sizing:border-box">'+esc(obsValor)+'</textarea>'
+    ? '<textarea id="demoObsInput" aria-label="Observação" style="width:100%;min-height:70px;font-family:Arial,sans-serif;font-size:13px;border:1px solid #ccc;border-radius:4px;padding:6px;margin-top:4px;box-sizing:border-box">'+esc(obsValor)+'</textarea>'
     : '<div style="white-space:pre-wrap">'+esc(obsValor||'—')+'</div>';
   const m = media(d.notas);
   const linhas = CRITERIOS_DEMONSTRATIVO.map(c=>{
@@ -863,7 +883,7 @@ function corpoDemonstrativo(l, mes, d, opts){
     '<div class="folha-demonstrativo" style="font-family:Arial,sans-serif;color:#1e2b38;border:3px solid #0070C0;padding:22px;box-sizing:border-box">'+
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:18px">'+
         '<div style="font-size:20px;font-weight:700;color:#FF6600;flex:1 1 auto">DEMONSTRATIVO DE DESEMPENHO</div>'+
-        '<img src="logo-demonstrativo.jpg" style="width:95px;flex:0 0 auto" alt="">'+
+        '<img src="logo-demonstrativo.jpg" style="width:95px;flex:0 0 auto" alt="JR Telecom">'+
       '</div>'+
       '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px">'+
         '<tr><td style="padding:6px 10px;border:1px solid #0070C0;width:50%">'+colaboradorHtml+'</td>'+
@@ -895,11 +915,20 @@ function abrirPreviaDemonstrativo(k){
   const d = DB.aval[k] || {notas:{}, auto:{}, forte:'', melhorar:'', meta:'', obs:''};
   window.__demoAtual = {lid, mes};
   document.getElementById('demoConteudoPrevia').innerHTML = corpoDemonstrativo(l, mes, d, {editavel:true});
+  window.__focoAntesModal = document.activeElement;
   document.getElementById('modalDemonstrativo').classList.add('aberto');
+  document.getElementById('app').inert = true;
+  document.querySelector('#modalDemonstrativo .modalDemonstrativoCaixa').focus();
 }
 function fecharPreviaDemonstrativo(){
   document.getElementById('modalDemonstrativo').classList.remove('aberto');
+  document.getElementById('app').inert = false;
+  const voltar = window.__focoAntesModal;
+  if(voltar && document.contains(voltar)) voltar.focus();
 }
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && document.getElementById('modalDemonstrativo').classList.contains('aberto')) fecharPreviaDemonstrativo();
+});
 function confirmarGerarDemonstrativo(){
   const {lid, mes} = window.__demoAtual;
   const l = DB.lideres.find(x=>x.id===lid);
@@ -930,7 +959,7 @@ function carregarPDI(){
   const d=DB.pdi[k]||{notas:{},auto:{},fortes:'',desenvolver:'',acoes:[{},{},{}],revisao:'',compromisso:''};
   d.acoes=d.acoes||[{},{},{}];
   const L=DB.lideres.find(l=>l.id===lid);
-  let h='<div class="card"><h2>PDI &nbsp;<span style="font-weight:400;text-transform:none;color:#6b7c8c">'+
+  let h='<div class="card"><h2>PDI &nbsp;<span style="font-weight:400;text-transform:none;color:#566779">'+
     L.nome+' — ciclo '+mesLabel(mes)+(L.qtd!==''&&L.qtd!==undefined?' · '+L.qtd+' técnico(s)':'')+'</span></h2>';
   PDI_BLOCOS.forEach(b=>{
     h+='<div class="grupo" style="border-color:'+b.cor+'"><h3 style="margin-top:0;color:'+b.cor+'">'+b.t+'</h3>';
@@ -938,33 +967,33 @@ function carregarPDI(){
       const v=d.notas[i.id];
       h+='<div class="ind"><div class="nome"><b>'+i.nome+'</b></div>'+
         '<div class="pctwrap pctwrap10">'+
-          '<div style="flex:0 0 70px"><label style="margin:0 0 2px">Gestor</label>'+
-          '<input type="number" min="0" max="10" step="0.5" placeholder="—" value="'+(v==null?'':v)+'" '+
+          '<div style="flex:0 0 70px"><label for="pg_'+i.id+'" style="margin:0 0 2px">Gestor</label>'+
+          '<input id="pg_'+i.id+'" aria-label="Gestor — '+i.nome+'" type="number" min="0" max="10" step="0.5" placeholder="—" value="'+(v==null?'':v)+'" '+
           'onchange="setPDI(\''+k+'\',\''+i.id+'\',this.value)" oninput="preBarPDI(\''+i.id+'\',this.value)"></div>'+
           '<div style="flex:1;min-width:70px"><div class="bar" id="barp_'+i.id+'"><i style="width:'+(v==null?0:v*10)+'%;background:'+(v==null?'#c3d2df':corPDI(v))+'"></i></div>'+
-          '<div id="lbp_'+i.id+'" style="font-size:12px;font-weight:700;margin-top:3px;color:'+(v==null?'#6b7c8c':corPDI(v))+'">'+(v==null?'—':fmtNota(v)+'/10')+'</div></div>'+
+          '<div id="lbp_'+i.id+'" style="font-size:12px;font-weight:700;margin-top:3px;color:'+(v==null?'#566779':corPDI(v))+'">'+(v==null?'—':fmtNota(v)+'/10')+'</div></div>'+
         '</div>'+
-        '<div style="flex:0 0 90px"><label style="margin:0 0 2px">Autoavaliação</label>'+
-        '<input type="number" min="0" max="10" step="0.5" placeholder="—" value="'+(d.auto[i.id]==null?'':d.auto[i.id])+'" '+
+        '<div style="flex:0 0 90px"><label for="pa_'+i.id+'" style="margin:0 0 2px">Autoavaliação</label>'+
+        '<input id="pa_'+i.id+'" aria-label="Autoavaliação — '+i.nome+'" type="number" min="0" max="10" step="0.5" placeholder="—" value="'+(d.auto[i.id]==null?'':d.auto[i.id])+'" '+
         'onchange="setPDIauto(\''+k+'\',\''+i.id+'\',this.value)"></div></div>';
     });
     h+='</div>';
   });
   h+='<div id="resumoPDI"></div>';
   h+='<h3>Plano de desenvolvimento</h3>'+
-     '<div style="margin-bottom:10px"><label>Pontos fortes a preservar</label><textarea onchange="setPDIc(\''+k+'\',\'fortes\',this.value)">'+esc(d.fortes||'')+'</textarea></div>'+
-     '<div style="margin-bottom:10px"><label>Pontos a desenvolver (os 2 ou 3 de nota mais baixa)</label><textarea onchange="setPDIc(\''+k+'\',\'desenvolver\',this.value)">'+esc(d.desenvolver||'')+'</textarea></div>'+
-     '<table style="margin-bottom:10px"><tr><th style="width:38%">O que será feito</th><th style="width:30%">Como / com que apoio</th><th style="width:16%">Prazo</th><th>Responsável</th></tr>';
+     '<div style="margin-bottom:10px"><label for="pd_fortes">Pontos fortes a preservar</label><textarea id="pd_fortes" onchange="setPDIc(\''+k+'\',\'fortes\',this.value)">'+esc(d.fortes||'')+'</textarea></div>'+
+     '<div style="margin-bottom:10px"><label for="pd_desenvolver">Pontos a desenvolver (os 2 ou 3 de nota mais baixa)</label><textarea id="pd_desenvolver" onchange="setPDIc(\''+k+'\',\'desenvolver\',this.value)">'+esc(d.desenvolver||'')+'</textarea></div>'+
+     '<div role="region" tabindex="0" aria-label="Plano de ação — 3 ações"><table style="margin-bottom:10px"><tr><th scope="col" style="width:38%">O que será feito</th><th scope="col" style="width:30%">Como / com que apoio</th><th scope="col" style="width:16%">Prazo</th><th scope="col">Responsável</th></tr>';
   for(let a=0;a<3;a++){
     const ac=d.acoes[a]||{};
-    h+='<tr><td><input value="'+esc(ac.oque||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'oque\',this.value)"></td>'+
-       '<td><input value="'+esc(ac.como||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'como\',this.value)"></td>'+
-       '<td><input type="date" value="'+(ac.prazo||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'prazo\',this.value)"></td>'+
-       '<td><input value="'+esc(ac.resp||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'resp\',this.value)"></td></tr>';
+    h+='<tr><td><input aria-label="Ação '+(a+1)+' — O que será feito" value="'+esc(ac.oque||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'oque\',this.value)"></td>'+
+       '<td><input aria-label="Ação '+(a+1)+' — Como / com que apoio" value="'+esc(ac.como||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'como\',this.value)"></td>'+
+       '<td><input aria-label="Ação '+(a+1)+' — Prazo" type="date" value="'+(ac.prazo||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'prazo\',this.value)"></td>'+
+       '<td><input aria-label="Ação '+(a+1)+' — Responsável" value="'+esc(ac.resp||'')+'" onchange="setPDIacao(\''+k+'\','+a+',\'resp\',this.value)"></td></tr>';
   }
-  h+='</table>'+
-     '<div class="row"><div><label>Data da próxima revisão do PDI</label><input type="date" value="'+(d.revisao||'')+'" onchange="setPDIc(\''+k+'\',\'revisao\',this.value)"></div>'+
-     '<div style="flex:2"><label>Compromisso assumido pelo líder (nas palavras dele)</label><input value="'+esc(d.compromisso||'')+'" onchange="setPDIc(\''+k+'\',\'compromisso\',this.value)"></div></div>'+
+  h+='</table></div>'+
+     '<div class="row"><div><label for="pd_revisao">Data da próxima revisão do PDI</label><input id="pd_revisao" type="date" value="'+(d.revisao||'')+'" onchange="setPDIc(\''+k+'\',\'revisao\',this.value)"></div>'+
+     '<div style="flex:2"><label for="pd_compromisso">Compromisso assumido pelo líder (nas palavras dele)</label><input id="pd_compromisso" value="'+esc(d.compromisso||'')+'" onchange="setPDIc(\''+k+'\',\'compromisso\',this.value)"></div></div>'+
      '<div class="acoes"><button class="btn" onclick="carregarPDI();alert(\'PDI salvo.\')">Salvar PDI</button>'+
      '<button class="btn-sec" onclick="gerarRelatorioPDI(\''+k+'\')">Gerar PDF deste PDI</button></div></div>';
   el.innerHTML=h;
@@ -975,7 +1004,7 @@ function preBarPDI(i,v){
   const b=document.getElementById('barp_'+i), lb=document.getElementById('lbp_'+i);
   const cor=(v===''||v==null)?'#c3d2df':corPDI(n);
   if(b) b.firstChild.style.cssText='width:'+(n*10)+'%;background:'+cor;
-  if(lb){ lb.textContent=(v===''||v==null)?'—':fmtNota(n)+'/10'; lb.style.color=(v===''||v==null)?'#6b7c8c':cor; }
+  if(lb){ lb.textContent=(v===''||v==null)?'—':fmtNota(n)+'/10'; lb.style.color=(v===''||v==null)?'#566779':cor; }
 }
 function setPDI(k,i,n){
   DB.pdi[k]=DB.pdi[k]||{notas:{},auto:{},acoes:[{},{},{}]};
@@ -1009,19 +1038,19 @@ function resumoPDI(k){
   const gaps=PDI_ITENS.filter(i=>d.notas[i.id]!=null&&d.auto[i.id]!=null&&Math.abs(d.notas[i.id]-d.auto[i.id])>=3);
   el.innerHTML='<div style="background:var(--claro);border-radius:6px;padding:14px;margin:6px 0 4px">'+
     '<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">'+
-    '<div><span style="font-size:11px;color:#6b7c8c;text-transform:uppercase">Média PDI</span><br>'+
-      '<b style="font-size:26px;color:'+f.c+'">'+(preenchidos?fmtNota(m):'—')+'</b><span style="color:#6b7c8c">/10</span></div>'+
-    '<div><span style="font-size:11px;color:#6b7c8c;text-transform:uppercase">Classificação</span><br>'+
-      '<b style="color:'+f.c+';font-size:15px">'+(preenchidos?f.t:'—')+'</b><br><span style="font-size:12px;color:#6b7c8c">'+f.a+'</span></div>'+
+    '<div><span style="font-size:11px;color:#566779;text-transform:uppercase">Média PDI</span><br>'+
+      '<b style="font-size:26px;color:'+f.c+'">'+(preenchidos?fmtNota(m):'—')+'</b><span style="color:#566779">/10</span></div>'+
+    '<div><span style="font-size:11px;color:#566779;text-transform:uppercase">Classificação</span><br>'+
+      '<b style="color:'+f.c+';font-size:15px">'+(preenchidos?f.t:'—')+'</b><br><span style="font-size:12px;color:#566779">'+f.a+'</span></div>'+
     '<div style="flex:1;min-width:200px">'+PDI_BLOCOS.map(b=>{
       const v=mediaPDI(d.notas,b);
       return '<div style="display:flex;justify-content:space-between;font-size:11px"><span>'+b.t+'</span><b>'+fmtNota(v)+'</b></div>'+
         '<div class="bar" style="height:6px;margin-bottom:5px"><i style="width:'+(v*10)+'%;background:'+b.cor+'"></i></div>';
     }).join('')+'</div></div>'+
-    '<div style="font-size:12px;color:#6b7c8c;margin-top:8px">'+preenchidos+' de 15 critérios preenchidos</div>'+
+    '<div style="font-size:12px;color:#566779;margin-top:8px">'+preenchidos+' de 15 critérios preenchidos</div>'+
     (baixos.length&&preenchidos>=5?'<div style="margin-top:8px;font-size:13px"><b>Foco do plano:</b> '+
       baixos.map(b=>b.nome+' ('+fmtNota(d.notas[b.id])+')').join(' · ')+'</div>':'')+
-    (gaps.length?'<div style="margin-top:8px;font-size:13px;color:#a06800"><b>⚠ Percepção divergente</b> em: '+
+    (gaps.length?'<div style="margin-top:8px;font-size:13px;color:#7a5200"><b>⚠ Percepção divergente</b> em: '+
       gaps.map(g=>g.nome+' (você '+fmtNota(d.notas[g.id])+' × ele '+fmtNota(d.auto[g.id])+')').join('; ')+'</div>':'')+
     '</div>';
 }
@@ -1036,9 +1065,9 @@ function carregarSemanal(){
   for(let s=1;s<=5;s++){
     const w=d['s'+s]||{travou:'',decisao:'',compromisso:'',ok:false};
     h+='<div class="semana"><strong>Semana '+s+'</strong>'+
-      '<label style="margin-top:8px">1. O que travou a equipe?</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'travou\',this.value)">'+esc(w.travou)+'</textarea>'+
-      '<label style="margin-top:8px">2. Que decisão ele tomou sozinho / trouxe pra você?</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'decisao\',this.value)">'+esc(w.decisao)+'</textarea>'+
-      '<label style="margin-top:8px">3. Compromisso até a próxima semana</label><textarea onchange="setSem(\''+k+'\',\'s'+s+'\',\'compromisso\',this.value)">'+esc(w.compromisso)+'</textarea>'+
+      '<label for="sw_travou_'+s+'" style="margin-top:8px">1. O que travou a equipe?</label><textarea id="sw_travou_'+s+'" aria-label="Semana '+s+' — 1. O que travou a equipe?" onchange="setSem(\''+k+'\',\'s'+s+'\',\'travou\',this.value)">'+esc(w.travou)+'</textarea>'+
+      '<label for="sw_decisao_'+s+'" style="margin-top:8px">2. Que decisão ele tomou sozinho / trouxe pra você?</label><textarea id="sw_decisao_'+s+'" aria-label="Semana '+s+' — 2. Que decisão ele tomou sozinho / trouxe pra você?" onchange="setSem(\''+k+'\',\'s'+s+'\',\'decisao\',this.value)">'+esc(w.decisao)+'</textarea>'+
+      '<label for="sw_comp_'+s+'" style="margin-top:8px">3. Compromisso até a próxima semana</label><textarea id="sw_comp_'+s+'" aria-label="Semana '+s+' — 3. Compromisso até a próxima semana" onchange="setSem(\''+k+'\',\'s'+s+'\',\'compromisso\',this.value)">'+esc(w.compromisso)+'</textarea>'+
       '<label style="margin-top:8px"><input type="checkbox" style="width:auto;margin-right:6px" '+(w.ok?'checked':'')+
       ' onchange="setSem(\''+k+'\',\'s'+s+'\',\'ok\',this.checked)">Compromisso da semana anterior foi cumprido</label></div>';
   }
@@ -1068,16 +1097,16 @@ function renderPainel(){
   kp.innerHTML=
     '<div class="kpi"><b>'+dados.length+'</b><span>Líderes avaliados</span></div>'+
     '<div class="kpi"><b style="color:'+corN(geral)+'">'+pct(geral)+'</b><span>Desempenho geral da liderança</span></div>'+
-    '<div class="kpi"><b style="color:#1e8e4e">'+acima+'</b><span>Acima do esperado (≥80%)</span></div>'+
+    '<div class="kpi"><b style="color:#157a3f">'+acima+'</b><span>Acima do esperado (≥80%)</span></div>'+
     '<div class="kpi"><b style="color:#c0392b">'+abaixo+'</b><span>Precisam de plano de ação (&lt;60%)</span></div>';
 
   dados.sort((a,b)=>media(b.d.notas)-media(a.d.notas));
-  document.getElementById('ranking').innerHTML='<table><tr><th>#</th><th>Líder</th><th>%</th><th style="width:170px">Nível</th><th>Classificação</th>'+
-    ['plan','anal','comu'].map(p=>'<th>'+PERFIS[p].nome+'</th>').join('')+'<th>Perfil dominante</th></tr>'+
+  document.getElementById('ranking').innerHTML='<table><tr><th scope="col">#</th><th scope="col">Líder</th><th scope="col">%</th><th scope="col" style="width:170px">Nível</th><th scope="col">Classificação</th>'+
+    ['plan','anal','comu'].map(p=>'<th scope="col">'+PERFIS[p].nome+'</th>').join('')+'<th scope="col">Perfil dominante</th></tr>'+
     dados.map((x,i)=>{
       const m=media(x.d.notas), f=faixaPct(m);
       const dom=['plan','anal','comu'].sort((a,b)=>media(x.d.notas,b)-media(x.d.notas,a))[0];
-      return '<tr><td>'+(i+1)+'</td><td><div style="display:flex;align-items:center;gap:8px">'+avatarHTML(x.l,32)+'<div><b>'+esc(x.l.nome)+'</b><br><small style="color:#6b7c8c">'+esc(x.l.equipe||'')+'</small></div></div></td>'+
+      return '<tr><td>'+(i+1)+'</td><td><div style="display:flex;align-items:center;gap:8px">'+avatarHTML(x.l,32)+'<div><b>'+esc(x.l.nome)+'</b><br><small style="color:#566779">'+esc(x.l.equipe||'')+'</small></div></div></td>'+
         '<td class="nota '+cls(m)+'">'+pct(m)+'</td>'+
         '<td><div class="bar"><i style="width:'+m+'%;background:'+corN(m)+'"></i></div></td>'+
         '<td style="color:'+f.c+';font-weight:600;font-size:12px">'+f.t+'</td>'+
@@ -1114,9 +1143,9 @@ function renderPainel(){
 
 function ultimoPDI(lid){
   const ks=Object.keys(DB.pdi||{}).filter(k=>k.startsWith(lid+'|')).sort();
-  if(!ks.length) return '<div style="margin-top:8px;font-size:11px;color:#6b7c8c">PDI ainda não aplicado</div>';
+  if(!ks.length) return '<div style="margin-top:8px;font-size:11px;color:#566779">PDI ainda não aplicado</div>';
   const k=ks[ks.length-1], m=mediaPDI(DB.pdi[k].notas), f=faixaPDI(m);
-  if(!m) return '<div style="margin-top:8px;font-size:11px;color:#6b7c8c">PDI ainda não aplicado</div>';
+  if(!m) return '<div style="margin-top:8px;font-size:11px;color:#566779">PDI ainda não aplicado</div>';
   return '<div style="margin-top:9px;padding-top:8px;border-top:1px dashed #d3dee8;font-size:12px">'+
     '<b>PDI '+mesLabel(k.split('|')[1])+':</b> <b style="color:'+f.c+'">'+fmtNota(m)+'/10</b> · '+
     '<span style="color:'+f.c+'">'+f.t+'</span></div>';
@@ -1129,13 +1158,13 @@ function renderHistorico(){
   if(!lid){ el.innerHTML='<div class="vazio">Cadastre e avalie um líder primeiro.</div>'; return; }
   const meses=Object.keys(DB.aval).filter(k=>k.startsWith(lid+'|')).map(k=>k.split('|')[1]).sort();
   if(!meses.length){ el.innerHTML='<div class="vazio">Sem avaliações registradas para este líder.</div>'; return; }
-  let h='<table><tr><th>Indicador</th>'+meses.map(m=>'<th>'+mesLabel(m)+'</th>').join('')+'<th>Tendência</th></tr>';
+  let h='<table><tr><th scope="col">Indicador</th>'+meses.map(m=>'<th scope="col">'+mesLabel(m)+'</th>').join('')+'<th scope="col">Tendência</th></tr>';
   IND.forEach(i=>{
     const vals=meses.map(m=>(DB.aval[lid+'|'+m].notas||{})[i.id]||null);
     const v=vals.filter(x=>x);
     let tend='—';
     if(v.length>=2){ const dif=v[v.length-1]-v[0];
-      tend = dif>0?'<span style="color:#1e8e4e;font-weight:700">▲ +'+dif.toFixed(2).replace('.',',')+' p.p.</span>':dif<0?'<span style="color:#c0392b;font-weight:700">▼ '+dif.toFixed(2).replace('.',',')+' p.p.</span>':'<span style="color:#6b7c8c">= estável</span>'; }
+      tend = dif>0?'<span style="color:#157a3f;font-weight:700">▲ +'+dif.toFixed(2).replace('.',',')+' p.p.</span>':dif<0?'<span style="color:#c0392b;font-weight:700">▼ '+dif.toFixed(2).replace('.',',')+' p.p.</span>':'<span style="color:#566779">= estável</span>'; }
     h+='<tr><td><b>'+i.nome+'</b> <span class="pill '+PERFIS[i.perfil].cls+'" style="font-size:10px">'+PERFIS[i.perfil].nome+'</span></td>'+
       vals.map(x=>'<td class="nota '+(x!=null?cls(x):'')+'">'+(x!=null?pct(x):'—')+'</td>').join('')+'<td>'+tend+'</td></tr>';
   });
@@ -1143,7 +1172,7 @@ function renderHistorico(){
   const dg=meds.length>=2?meds[meds.length-1]-meds[0]:null;
   h+='<tr style="background:var(--claro)"><td><b>DESEMPENHO GERAL</b></td>'+
     meds.map(m=>'<td class="nota '+cls(m)+'">'+pct(m)+'</td>').join('')+
-    '<td>'+(dg==null?'—':(dg>=0?'<span style="color:#1e8e4e;font-weight:700">▲ +'+dg.toFixed(2).replace('.',',')+' p.p.</span>':'<span style="color:#c0392b;font-weight:700">▼ '+dg.toFixed(2).replace('.',',')+' p.p.</span>'))+'</td></tr></table>';
+    '<td>'+(dg==null?'—':(dg>=0?'<span style="color:#157a3f;font-weight:700">▲ +'+dg.toFixed(2).replace('.',',')+' p.p.</span>':'<span style="color:#c0392b;font-weight:700">▼ '+dg.toFixed(2).replace('.',',')+' p.p.</span>'))+'</td></tr></table>';
   h+='<h3>Metas e registros por mês</h3>';
   meses.slice().reverse().forEach(m=>{
     const d=DB.aval[lid+'|'+m];
@@ -1151,7 +1180,7 @@ function renderHistorico(){
       (d.forte?'<div style="margin-top:6px;font-size:13px"><b>Forte:</b> '+esc(d.forte)+'</div>':'')+
       (d.melhorar?'<div style="font-size:13px"><b>Melhorar:</b> '+esc(d.melhorar)+'</div>':'')+
       (d.meta?'<div style="font-size:13px"><b>Meta:</b> '+esc(d.meta)+'</div>':'')+
-      (d.obs?'<div style="font-size:13px;color:#6b7c8c"><b>Obs:</b> '+esc(d.obs)+'</div>':'')+'</div>';
+      (d.obs?'<div style="font-size:13px;color:#566779"><b>Obs:</b> '+esc(d.obs)+'</div>':'')+'</div>';
   });
   h+='<div class="acoes"><button class="btn-sec" onclick="window.print()">Gerar PDF da evolução</button></div>';
   el.innerHTML=h;
@@ -1165,7 +1194,7 @@ function renderCriterios(){
       '<p class="legend" style="margin:4px 0 8px">'+PERFIS[p].txt+'</p><table>'+
       IND.filter(i=>i.perfil===p).map(i=>
         '<tr><td style="width:210px"><b>'+i.nome+'</b></td><td>'+i.desc+'</td>'+
-        '<td style="width:290px;color:#6b7c8c;font-size:12px"><b>100%</b> = '+nota5(i.id)+'</td></tr>').join('')+
+        '<td style="width:290px;color:#566779;font-size:12px"><b>100%</b> = '+nota5(i.id)+'</td></tr>').join('')+
       '</table></div>').join('');
 }
 function nota5(id){
@@ -1238,21 +1267,21 @@ function renderRelatorioGeral(){
     '<div class="kpi"><b>'+DB.lideres.length+'</b><span>Líderes cadastrados</span></div>';
 
   document.getElementById('tabelaLideresGeral').innerHTML = DB.lideres.length
-    ? '<table><tr><th>Líder</th><th>Avaliações mensais</th><th>Meses</th><th>PDI</th><th>Ciclos</th><th>Check-in</th><th>Meses</th></tr>'+
+    ? '<table><tr><th scope="col">Líder</th><th scope="col">Avaliações mensais</th><th scope="col">Meses</th><th scope="col">PDI</th><th scope="col">Ciclos</th><th scope="col">Check-in</th><th scope="col">Meses</th></tr>'+
       DB.lideres.map(l=>{
         const av = avaliacaoPorLider[l.id] ? Array.from(avaliacaoPorLider[l.id]).sort() : [];
         const pd = pdiPorLider[l.id] ? Array.from(pdiPorLider[l.id]).sort() : [];
         const se = semPorLider[l.id] ? Array.from(semPorLider[l.id]).sort() : [];
         return '<tr><td><b>'+esc(l.nome)+'</b></td>'+
-          '<td class="nota">'+av.length+'</td><td style="font-size:12px;color:#6b7c8c">'+(av.map(mesLabel).join(', ')||'—')+'</td>'+
-          '<td class="nota">'+pd.length+'</td><td style="font-size:12px;color:#6b7c8c">'+(pd.map(mesLabel).join(', ')||'—')+'</td>'+
-          '<td class="nota">'+se.length+'</td><td style="font-size:12px;color:#6b7c8c">'+(se.map(mesLabel).join(', ')||'—')+'</td></tr>';
+          '<td class="nota">'+av.length+'</td><td style="font-size:12px;color:#566779">'+(av.map(mesLabel).join(', ')||'—')+'</td>'+
+          '<td class="nota">'+pd.length+'</td><td style="font-size:12px;color:#566779">'+(pd.map(mesLabel).join(', ')||'—')+'</td>'+
+          '<td class="nota">'+se.length+'</td><td style="font-size:12px;color:#566779">'+(se.map(mesLabel).join(', ')||'—')+'</td></tr>';
       }).join('')+'</table>'
     : '<div class="vazio">Nenhum líder cadastrado ainda.</div>';
 
   const todosMeses = Array.from(new Set([...Object.keys(avaliacaoPorMes), ...Object.keys(pdiPorMes), ...Object.keys(semPorMes)])).sort();
   document.getElementById('tabelaMesesGeral').innerHTML = todosMeses.length
-    ? '<table><tr><th>Mês</th><th>Avaliações mensais (líderes)</th><th>PDI (líderes)</th><th>Check-in (semanas preenchidas)</th></tr>'+
+    ? '<table><tr><th scope="col">Mês</th><th scope="col">Avaliações mensais (líderes)</th><th scope="col">PDI (líderes)</th><th scope="col">Check-in (semanas preenchidas)</th></tr>'+
       todosMeses.map(mes=>{
         const av = avaliacaoPorMes[mes] ? avaliacaoPorMes[mes].size : 0;
         const pd = pdiPorMes[mes] ? pdiPorMes[mes].size : 0;
@@ -1295,7 +1324,7 @@ function importar(inp){
   const r=new FileReader();
   r.onload=e=>{ try{ const d=JSON.parse(e.target.result);
     if(!d.lideres) throw 0;
-    if(!confirm('Isso vai substituir os dados atuais do banco (E:\\sistema evolução de lideres\\dados.db). Continuar?')) return;
+    if(!confirm('Isso vai substituir TODOS os dados atuais do sistema pelos do arquivo. Continuar?')) return;
     DB=d; salvar(); renderLideres(); preencherSelects(); renderPainel(); alert('Backup importado.');
   }catch(x){ alert('Arquivo inválido.'); } };
   r.readAsText(f);
@@ -1318,7 +1347,7 @@ async function boot(){
     }
   }catch(e){
     mostrarLoginTela();
-    document.getElementById('loginErro').textContent='Não foi possível conectar ao servidor. Confirme se o sistema está rodando (INICIAR_SISTEMA.bat).';
+    document.getElementById('loginErro').textContent='Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.';
     document.getElementById('loginErro').style.display='block';
   }
 }
