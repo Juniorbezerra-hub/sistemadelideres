@@ -418,17 +418,6 @@ function faixaPDI(n){
   return       {t:'Crítico',             c:'#c0392b', a:'Plano de ação formal, revisão em 30 dias'};
 }
 
-/* Lista de referência dos 8 líderes — usada só pelo botão "Restaurar lista de líderes" */
-const SEED=[
-  {id:'L01', nome:'Adricelio Passos dos Santos',          equipe:'Interior — S.R. Nonato, Casa Nova, Sobradinho, Remanso, Santana do Sobrado, Campo Alegre, Petrolina', qtd:20},
-  {id:'L02', nome:'Andre Alisson da Cruz Santos',         equipe:'Petrolina — Analista Técnico (coordena os 7 líderes) + 3 técnicos diretos', qtd:3},
-  {id:'L03', nome:'Claudio Jose dos Passos Borges Junior',equipe:'Petrolina — Projeto, Comercial, Suporte, Remarcações', qtd:20},
-  {id:'L04', nome:'Daniel de Brito Silva',                equipe:'Dormentes, Petrolina, KM 25', qtd:20},
-  {id:'L05', nome:'Denilson Moises Luz de Oliveira',      equipe:'Petrolina — Qualidade / Operação Interna', qtd:12},
-  {id:'L06', nome:'Francisco Dias Galvao',                equipe:'Petrolina', qtd:15},
-  {id:'L07', nome:'Isaias Dias Ferreira',                 equipe:'Petrolina — Eventos', qtd:7},
-  {id:'L08', nome:'Leonidas Batista da Costa',            equipe:'Petrolina — SEM técnicos vinculados no cadastro (verificar)', qtd:0}
-];
 
 function mesAtual(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function mesLabel(m){ if(!m) return ''; const [a,b]=m.split('-');
@@ -1343,7 +1332,10 @@ function renderRelatorioGeral(){
 }
 
 /* ---------------- LÍDERES: restaurar cadastro padrão ---------------- */
-function restaurarEquipe(){
+async function restaurarEquipe(){
+  const resp = await fetch('/api/lideres-padrao');
+  if(!resp.ok){ alert('Não foi possível obter a lista padrão de líderes.'); return; }
+  const SEED = await resp.json();
   const faltando=SEED.filter(s=>!DB.lideres.some(l=>l.id===s.id));
   if(!faltando.length){ alert('Todos os 8 líderes já estão cadastrados.'); return; }
   if(!confirm('Adicionar '+faltando.length+' líder(es) que estão faltando na lista? Nada será apagado.')) return;

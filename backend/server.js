@@ -134,17 +134,26 @@ async function auditar(evento, ip, detalhe){
 
 /* Senha: hash scrypt com comparação em tempo constante. Usuário e senha são SEMPRE ambos verificados
    (sem atalho que revele qual dos dois errou). */
-function verificarSenha(informada){
+/* Senhas que já vazaram (ficaram públicas no histórico do git): nunca aceitas, mesmo que ainda estejam numa variável de ambiente. */
+const SENHAS_COMPROMETIDAS = new Set(['bezerra01']);
+function conferirScrypt(senha, hash){
+  try{
+    const [alg, N, r, p, salB64, hashB64] = String(hash).split('$');
+    if(alg !== 'scrypt') return false;
+    const esperado = Buffer.from(hashB64, 'base64');
+    const candidato = crypto.scryptSync(senha, Buffer.from(salB64, 'base64'), esperado.length, { N:+N, r:+r, p:+p });
+    return crypto.timingSafeEqual(candidato, esperado);
+  }catch(e){ return false; }
+}
+/* O hash guardado no banco (tabela admin_credenciais) tem prioridade sobre as variáveis de ambiente: dá pra trocar a
+   senha sem redeploy (node backend/definir-senha-admin.js). Se o banco não responder, o login falha fechado (503). */
+async function verificarSenha(informada){
   const s = String(informada == null ? '' : informada).slice(0,256);
-  if(SENHA_HASH){
-    try{
-      const [alg, N, r, p, salB64, hashB64] = SENHA_HASH.split('$');
-      if(alg !== 'scrypt') return false;
-      const esperado = Buffer.from(hashB64, 'base64');
-      const candidato = crypto.scryptSync(s, Buffer.from(salB64, 'base64'), esperado.length, { N:+N, r:+r, p:+p });
-      return crypto.timingSafeEqual(candidato, esperado);
-    }catch(e){ return false; }
-  }
+  const { data, error } = await supabase.from('admin_credenciais').select('senha_hash').eq('usuario', USUARIO).maybeSingle();
+  if(error) throw error;
+  if(data && data.senha_hash) return conferirScrypt(s, data.senha_hash);
+  if(SENHA_HASH) return conferirScrypt(s, SENHA_HASH);
+  if(SENHAS_COMPROMETIDAS.has(SENHA)) return false;
   return iguais(s, SENHA);
 }
 function verificarUsuario(informado){
@@ -540,7 +549,7 @@ app.post('/api/login', async (req, res) => {
     if(bloqueio) return bloqueadoAte(bloqueio);
 
     const { usuario, senha } = req.body || {};
-    const okUsuario = verificarUsuario(usuario), okSenha = verificarSenha(senha);   // sempre os dois
+    const okUsuario = verificarUsuario(usuario), okSenha = await verificarSenha(senha);   // sempre os dois
     if(okUsuario && okSenha){
       const token = await criarSessao(ip);
       await supabase.rpc('limpar_falhas_login', { p_chave: chave });
@@ -576,6 +585,12 @@ app.get('/api/me', async (req, res) => {
     console.error('Erro ao validar sessão:', e.message);
     res.status(503).json({ erro: 'Serviço temporariamente indisponível.' });
   }
+});
+
+/* Lista padrão dos líderes (botão "Restaurar lista de líderes"). Fica aqui, atrás do login — antes estava embutida
+   no HTML público e expunha nomes e equipes de funcionários a qualquer visitante. */
+app.get('/api/lideres-padrao', exigirLogin, (req, res) => {
+  res.json(SEED_LIDERES.map(l => ({ id: l.id, nome: l.nome, equipe: l.equipe, qtd: l.qtd })));
 });
 
 app.get('/api/estado', exigirLogin, async (req, res) => {
