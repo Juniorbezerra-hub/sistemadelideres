@@ -8,6 +8,8 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { GoogleAuth } = require('google-auth-library');
 const helmet = require('helmet');
+const totp = require('./totp');
+const { gerarHash } = require('./gerar-hash-senha');
 
 /* Carregador mínimo de .env (sem dependência de pacote "dotenv") — lê backend/.env se existir.
    Na Vercel não existe esse arquivo; as variáveis vêm configuradas direto na plataforma. */
@@ -105,22 +107,32 @@ async function criarSessao(ip){
   if(error) throw error;
   return sid+'.'+assinar(sid);
 }
+/* Devolve { sid, obrigatorio, ativo } (2FA obrigatório no sistema / já ativado) ou null se a sessão não vale. */
 async function sessaoValida(req){
   const sid = sidDoToken(lerCookies(req).sel_auth);
   if(!sid) return null;
-  const { data, error } = await supabase.rpc('validar_sessao', { p_sid: sid, p_idle_min: SESSAO_OCIOSA_MIN });
+  const { data, error } = await supabase.rpc('validar_sessao_v2', { p_sid: sid, p_idle_min: SESSAO_OCIOSA_MIN, p_usuario: USUARIO });
   if(error) throw error;
-  return data === true ? sid : null;
+  if(!data || data.ok !== true) return null;
+  return { sid, obrigatorio: data.obrigatorio === true, ativo: data.ativo === true };
 }
-async function exigirLogin(req, res, next){
+/* Rotas de configuração da conta (2FA, senha, sair de tudo): exigem só sessão válida. */
+async function exigirSessao(req, res, next){
   try{
-    const sid = await sessaoValida(req);
-    if(sid){ req.sid = sid; return next(); }
+    const s = await sessaoValida(req);
+    if(s){ req.sid = s.sid; req.doisFatores = s; return next(); }
   }catch(e){
     console.error('Erro ao validar sessão:', e.message);
     return res.status(503).json({ erro: 'Serviço temporariamente indisponível. Tente novamente.' });
   }
   res.status(401).json({ erro: 'Não autenticado.' });
+}
+/* Rotas de dados: além da sessão, se o 2FA é obrigatório e ainda não foi ativado, só a tela de ativação é liberada. */
+function exigirLogin(req, res, next){
+  exigirSessao(req, res, () => {
+    if(req.doisFatores.obrigatorio && !req.doisFatores.ativo) return res.status(403).json({ erro: 'Ative a verificação em 2 etapas para continuar.', codigo: '2fa_setup_required' });
+    next();
+  });
 }
 async function auditar(evento, ip, detalhe){
   try{ await supabase.rpc('registrar_auditoria', { p_evento: evento, p_ip: ip || null, p_detalhe: detalhe || null }); }catch(e){}
@@ -150,6 +162,47 @@ async function verificarSenha(informada){
 }
 function verificarUsuario(informado){
   return iguais(String(informado == null ? '' : informado).slice(0,256), USUARIO);
+}
+
+/* ---------------- VERIFICAÇÃO EM 2 ETAPAS (TOTP) ----------------
+   Segredo criptografado (AES-256-GCM, chave TOTP_CHAVE). Código usado uma vez só (anti-replay atômico no banco).
+   Códigos de recuperação de uso único guardados só como HMAC. */
+const EMISSOR_2FA = 'JR Telecom Evolução de Líderes';
+const CHAVE_LIMITE_CODIGO = 'conta:otp';   // limite por CONTA: só conta falha de código quando a senha estava correta
+async function carregar2fa(){
+  const { data, error } = await supabase.from('admin_2fa').select('*').eq('usuario', USUARIO).maybeSingle();
+  if(error) throw error;
+  return data;
+}
+/* Confere e CONSOME um código TOTP (6 dígitos) ou de recuperação. Não faz controle de tentativas. */
+async function conferirCodigo(linha, codigo){
+  if(!linha || !linha.ativo || !linha.segredo_cifrado) return false;
+  const c = String(codigo == null ? '' : codigo).slice(0,40);
+  const contador = totp.totpContadorValido(totp.decifrar(linha.segredo_cifrado, USUARIO), c);
+  if(contador !== null){
+    const { data, error } = await supabase.rpc('totp_consumir_contador', { p_usuario: USUARIO, p_contador: contador });
+    if(error) throw error;
+    return data === true;
+  }
+  if(totp.pareceCodigoRecuperacao(c)){
+    const { data, error } = await supabase.rpc('totp_consumir_recuperacao', { p_usuario: USUARIO, p_hash: totp.hashRecuperacao(c) });
+    if(error) throw error;
+    return data === true;
+  }
+  return false;
+}
+/* Confere o código com limite por conta (ações sensíveis dentro da sessão). Devolve { ok, bloqueadoAte }. */
+async function conferirCodigoComLimite(linha, codigo){
+  const { data: bloqueio, error: e1 } = await supabase.rpc('checar_bloqueio_login', { p_chave: CHAVE_LIMITE_CODIGO });
+  if(e1) throw e1;
+  if(bloqueio) return { ok:false, bloqueadoAte: bloqueio };
+  if(await conferirCodigo(linha, codigo)){
+    await supabase.rpc('limpar_falhas_login', { p_chave: CHAVE_LIMITE_CODIGO });
+    return { ok:true };
+  }
+  const { data: ate, error: e2 } = await supabase.rpc('registrar_falha_login', { p_chave: CHAVE_LIMITE_CODIGO, p_max: 8, p_janela_min: 15, p_bloqueio_min: 15 });
+  if(e2) throw e2;
+  return { ok:false, bloqueadoAte: ate || null };
 }
 
 /* ---------------- VALIDAÇÃO DE ENTRADA ---------------- */
@@ -405,6 +458,14 @@ app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store')
 app.use('/api/login', express.json({ limit: '2kb' }));
 app.use(express.json({ limit: '6mb' }));
 
+/* A tela de login só mostra o campo do código quando o 2FA está ativo (informação pública e inofensiva). */
+app.get('/api/login-config', async (req, res) => {
+  try{ const l = await carregar2fa(); res.json({ otp: !!(l && l.ativo) }); }
+  catch(e){ console.error('Erro em login-config:', e.message); res.status(503).json({ erro: 'Serviço temporariamente indisponível.' }); }
+});
+
+/* Login em uma etapa só: usuário + senha + código juntos. Qualquer erro devolve a MESMA mensagem genérica
+   (não revela se foi o usuário, a senha ou o código). Todos os fatores são sempre avaliados. */
 app.post('/api/login', async (req, res) => {
   const ip = ipDoRequest(req);
   const chave = 'ip:'+ip;
@@ -418,12 +479,23 @@ app.post('/api/login', async (req, res) => {
     if(erroBloqueio) throw erroBloqueio;
     if(bloqueio) return bloqueadoAte(bloqueio);
 
-    const { usuario, senha } = req.body || {};
+    const { usuario, senha, otp } = req.body || {};
     const okUsuario = verificarUsuario(usuario), okSenha = await verificarSenha(senha);   // sempre os dois
-    if(okUsuario && okSenha){
+    const linha2fa = await carregar2fa();
+    let ok = okUsuario && okSenha;
+    if(ok && linha2fa && linha2fa.ativo){
+      // senha certa e 2FA ativo: o código é exigido; erro de código conta também contra a CONTA (não só o IP)
+      if(otp == null || String(otp).trim() === '') ok = false;
+      else{
+        const r = await conferirCodigoComLimite(linha2fa, otp);
+        if(r.bloqueadoAte) return bloqueadoAte(r.bloqueadoAte);
+        ok = r.ok;
+      }
+    }
+    if(ok){
       const token = await criarSessao(ip);
       await supabase.rpc('limpar_falhas_login', { p_chave: chave });
-      await auditar('login_ok', ip);
+      await auditar('login_ok', ip, linha2fa && linha2fa.ativo ? '2fa' : '');
       res.setHeader('Set-Cookie', montarSetCookie('sel_auth', token, SESSAO_MAX_MIN*60));
       return res.json({ ok:true });
     }
@@ -431,7 +503,7 @@ app.post('/api/login', async (req, res) => {
     if(erroFalha) throw erroFalha;
     await auditar('login_falha', ip, ate ? 'bloqueado' : '');
     if(ate) return bloqueadoAte(ate);
-    res.status(401).json({ erro: 'Usuário ou senha incorretos.' });
+    res.status(401).json({ erro: 'Usuário, senha ou código incorretos.' });
   }catch(e){
     console.error('Erro no login:', e.message);
     res.status(503).json({ erro: 'Serviço temporariamente indisponível. Tente novamente.' });
@@ -450,11 +522,141 @@ app.post('/api/logout', async (req, res) => {
 });
 app.get('/api/me', async (req, res) => {
   try{
-    res.json({ autenticado: !!(await sessaoValida(req)) });
+    const s = await sessaoValida(req);
+    if(!s) return res.json({ autenticado:false });
+    res.json({ autenticado:true, ativo2fa: s.ativo, obrigatorio2fa: s.obrigatorio, precisaAtivar2fa: s.obrigatorio && !s.ativo });
   }catch(e){
     console.error('Erro ao validar sessão:', e.message);
     res.status(503).json({ erro: 'Serviço temporariamente indisponível.' });
   }
+});
+
+/* ---- Segurança da conta (exigem sessão; NÃO exigem 2FA já ativo, senão ninguém conseguiria ativar) ---- */
+const erro503 = res => res.status(503).json({ erro: 'Serviço temporariamente indisponível. Tente novamente.' });
+const bloqueadoConta = (res, ate) => {
+  const seg = Math.max(1, Math.ceil((new Date(ate).getTime() - Date.now())/1000));
+  res.setHeader('Retry-After', String(seg));
+  return res.status(429).json({ erro: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.', segundos: seg });
+};
+app.get('/api/2fa/status', exigirSessao, async (req, res) => {
+  try{
+    const l = await carregar2fa();
+    const restantes = l && l.ativo ? (l.codigos_recuperacao || []).length : 0;
+    res.json({ ativo: !!(l && l.ativo), obrigatorio: req.doisFatores.obrigatorio, codigosRestantes: restantes, chaveConfigurada: !!totp.chaveMestra() });
+  }catch(e){ console.error('Erro 2fa/status:', e.message); erro503(res); }
+});
+/* Passo 1 da ativação: gera um segredo novo (guardado cifrado como "pendente") e devolve para o QR Code. */
+app.post('/api/2fa/iniciar', exigirSessao, async (req, res) => {
+  try{
+    if(!totp.chaveMestra()) return res.status(503).json({ erro: 'A chave de criptografia do 2FA (TOTP_CHAVE) ainda não foi configurada no servidor.' });
+    const l = await carregar2fa();
+    if(l && l.ativo) return res.status(409).json({ erro: 'A verificação em 2 etapas já está ativa.' });
+    const segredo = totp.gerarSegredo();
+    const { error } = await supabase.from('admin_2fa').upsert({ usuario: USUARIO, pendente_cifrado: totp.cifrar(segredo, USUARIO), ativo: false, atualizado_em: new Date().toISOString() });
+    if(error) throw error;
+    await auditar('2fa_inicio', ipDoRequest(req));
+    res.json({ segredo: totp.base32Codificar(segredo), uri: totp.montarUriOtpauth(segredo, EMISSOR_2FA, USUARIO) });
+  }catch(e){ console.error('Erro 2fa/iniciar:', e.message); erro503(res); }
+});
+/* Passo 2: o usuário digita o código que o app mostrou; se bater, ativa e devolve os códigos de recuperação (uma vez só). */
+app.post('/api/2fa/confirmar', exigirSessao, async (req, res) => {
+  try{
+    const ip = ipDoRequest(req);
+    const l = await carregar2fa();
+    if(!l || l.ativo || !l.pendente_cifrado) return res.status(409).json({ erro: 'Nenhuma ativação em andamento. Comece de novo.' });
+    const { data: bloqueio, error: e1 } = await supabase.rpc('checar_bloqueio_login', { p_chave: CHAVE_LIMITE_CODIGO });
+    if(e1) throw e1;
+    if(bloqueio) return bloqueadoConta(res, bloqueio);
+    const segredo = totp.decifrar(l.pendente_cifrado, USUARIO);
+    const contador = totp.totpContadorValido(segredo, (req.body || {}).codigo);
+    if(contador === null){
+      const { data: ate, error: e2 } = await supabase.rpc('registrar_falha_login', { p_chave: CHAVE_LIMITE_CODIGO, p_max: 8, p_janela_min: 15, p_bloqueio_min: 15 });
+      if(e2) throw e2;
+      if(ate) return bloqueadoConta(res, ate);
+      return res.status(400).json({ erro: 'Código incorreto. Confira a hora do celular e digite o código atual do aplicativo.' });
+    }
+    const rec = totp.gerarCodigosRecuperacao(10);
+    const { error } = await supabase.from('admin_2fa').update({
+      segredo_cifrado: l.pendente_cifrado, pendente_cifrado: null, ativo: true, ultimo_contador: contador,
+      codigos_recuperacao: rec.hashes, atualizado_em: new Date().toISOString()
+    }).eq('usuario', USUARIO);
+    if(error) throw error;
+    await supabase.rpc('limpar_falhas_login', { p_chave: CHAVE_LIMITE_CODIGO });
+    await supabase.rpc('revogar_outras_sessoes', { p_sid: req.sid });   // quem estava logado sem 2FA sai
+    await auditar('2fa_ativado', ip);
+    res.json({ ok:true, codigosRecuperacao: rec.codigos });
+  }catch(e){ console.error('Erro 2fa/confirmar:', e.message); erro503(res); }
+});
+/* Gera 10 códigos de recuperação novos (os antigos deixam de valer). Exige um código atual do app. */
+app.post('/api/2fa/codigos-recuperacao', exigirSessao, async (req, res) => {
+  try{
+    const l = await carregar2fa();
+    if(!l || !l.ativo) return res.status(409).json({ erro: 'A verificação em 2 etapas não está ativa.' });
+    const r = await conferirCodigoComLimite(l, (req.body || {}).codigo);
+    if(r.bloqueadoAte) return bloqueadoConta(res, r.bloqueadoAte);
+    if(!r.ok) return res.status(400).json({ erro: 'Código incorreto.' });
+    const rec = totp.gerarCodigosRecuperacao(10);
+    const { error } = await supabase.from('admin_2fa').update({ codigos_recuperacao: rec.hashes, atualizado_em: new Date().toISOString() }).eq('usuario', USUARIO);
+    if(error) throw error;
+    await auditar('2fa_codigos_novos', ipDoRequest(req));
+    res.json({ ok:true, codigosRecuperacao: rec.codigos });
+  }catch(e){ console.error('Erro 2fa/codigos-recuperacao:', e.message); erro503(res); }
+});
+/* Desativar: exige senha + código, e é recusado enquanto o modo obrigatório estiver ligado. */
+app.post('/api/2fa/desativar', exigirSessao, async (req, res) => {
+  try{
+    const l = await carregar2fa();
+    if(!l || !l.ativo) return res.status(409).json({ erro: 'A verificação em 2 etapas não está ativa.' });
+    if(req.doisFatores.obrigatorio) return res.status(403).json({ erro: 'A verificação em 2 etapas é obrigatória neste sistema e não pode ser desativada.' });
+    const { senha, codigo } = req.body || {};
+    if(!(await verificarSenha(senha))) return res.status(400).json({ erro: 'Senha ou código incorretos.' });
+    const r = await conferirCodigoComLimite(l, codigo);
+    if(r.bloqueadoAte) return bloqueadoConta(res, r.bloqueadoAte);
+    if(!r.ok) return res.status(400).json({ erro: 'Senha ou código incorretos.' });
+    const { error } = await supabase.from('admin_2fa').delete().eq('usuario', USUARIO);
+    if(error) throw error;
+    await supabase.rpc('revogar_outras_sessoes', { p_sid: req.sid });
+    await auditar('2fa_desativado', ipDoRequest(req));
+    res.json({ ok:true });
+  }catch(e){ console.error('Erro 2fa/desativar:', e.message); erro503(res); }
+});
+/* Trocar a própria senha: exige a senha atual (+ código se o 2FA estiver ativo). Encerra as outras sessões. */
+function senhaNovaInvalida(nova, atual){
+  if(typeof nova !== 'string' || nova.length < 12) return 'A nova senha precisa ter pelo menos 12 caracteres.';
+  if(nova.length > 200) return 'A nova senha é longa demais.';
+  if(!/[A-Za-z]/.test(nova) || !/\d/.test(nova)) return 'Use letras e números na nova senha.';
+  if(nova === atual) return 'A nova senha precisa ser diferente da atual.';
+  if(nova.toLowerCase().includes(String(USUARIO).toLowerCase())) return 'A senha não pode conter o nome de usuário.';
+  return null;
+}
+app.post('/api/minha-senha', exigirSessao, async (req, res) => {
+  try{
+    if(req.doisFatores.obrigatorio && !req.doisFatores.ativo) return res.status(403).json({ erro: 'Ative a verificação em 2 etapas primeiro.', codigo: '2fa_setup_required' });
+    const { senha_atual, nova_senha, codigo } = req.body || {};
+    const problema = senhaNovaInvalida(nova_senha, senha_atual);
+    if(problema) return res.status(400).json({ erro: problema });
+    if(!(await verificarSenha(senha_atual))) return res.status(400).json({ erro: 'Senha atual ou código incorretos.' });
+    const l = await carregar2fa();
+    if(l && l.ativo){
+      const r = await conferirCodigoComLimite(l, codigo);
+      if(r.bloqueadoAte) return bloqueadoConta(res, r.bloqueadoAte);
+      if(!r.ok) return res.status(400).json({ erro: 'Senha atual ou código incorretos.' });
+    }
+    const { error } = await supabase.from('admin_credenciais').upsert({ usuario: USUARIO, senha_hash: gerarHash(nova_senha), atualizado_em: new Date().toISOString() });
+    if(error) throw error;
+    await supabase.rpc('revogar_outras_sessoes', { p_sid: req.sid });
+    await auditar('senha_trocada', ipDoRequest(req));
+    res.json({ ok:true });
+  }catch(e){ console.error('Erro minha-senha:', e.message); erro503(res); }
+});
+/* Sair de todos os aparelhos (mantém só esta sessão). */
+app.post('/api/logout-todos', exigirSessao, async (req, res) => {
+  try{
+    const { data, error } = await supabase.rpc('revogar_outras_sessoes', { p_sid: req.sid });
+    if(error) throw error;
+    await auditar('logout_todos', ipDoRequest(req), String(data));
+    res.json({ ok:true, encerradas: data });
+  }catch(e){ console.error('Erro logout-todos:', e.message); erro503(res); }
 });
 
 /* Lista padrão dos líderes (botão "Restaurar lista de líderes"). Fica aqui, atrás do login — antes estava embutida

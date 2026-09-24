@@ -115,6 +115,22 @@ tr:hover td{background:#fafcfe}
 .btn-logout{background:rgba(0,8,110,.55);border:1px solid rgba(255,255,255,.7);color:#fff;padding:6px 12px;font-size:12px;border-radius:5px}
 .btn-logout:hover{background:rgba(0,8,110,.85)}
 header{display:flex;justify-content:space-between;align-items:center;gap:16px}
+#modalSeguranca{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1600;display:none;align-items:center;justify-content:center;padding:20px}
+#modalSeguranca.aberto{display:flex}
+.segCaixa{background:#fff;border-radius:10px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.segCaixa h2{margin:0 0 6px;font-size:17px;color:var(--azul)}
+.segCaixa h2:focus{outline:none}
+.segCaixa h3{margin:0 0 6px;font-size:14px;color:#2c3e50}
+.segBloco{border-top:1px solid var(--borda);padding-top:14px;margin-top:14px}
+.segMsg{font-size:13px;margin-top:10px}
+.segMsg.erro{color:var(--verm)}
+.segMsg.ok{color:var(--verde)}
+.segPassos{font-size:13px;line-height:1.7;padding-left:20px;margin:8px 0}
+.segQr{width:210px;height:210px;margin:8px auto;background:#fff}
+.segQr svg{width:100%;height:100%;display:block}
+.segChave{display:inline-block;margin-top:4px;padding:4px 8px;background:#f4f7fa;border:1px solid var(--borda);border-radius:5px;font-size:13px;letter-spacing:1px;user-select:all;word-break:break-all}
+.segCodigos{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-family:Consolas,monospace;font-size:15px;background:#f4f7fa;border:1px solid var(--borda);border-radius:8px;padding:12px 14px;list-style:none;margin:10px 0}
+.segCodigos li{user-select:all}
 #avisoConexao{position:fixed;left:0;right:0;bottom:0;background:var(--verm);color:#fff;text-align:center;padding:8px;font-size:13px;z-index:2000;display:none}
 </style>
 </head>
@@ -140,7 +156,12 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
       <input id="loginUser" autocomplete="username">
       <label for="loginSenha">Senha</label>
       <input id="loginSenha" type="password" autocomplete="current-password">
-      <div class="loginErro" id="loginErro" role="alert">Usuário ou senha incorretos.</div>
+      <div id="campoOtp" style="display:none">
+        <label for="loginOtp">Código de verificação</label>
+        <input id="loginOtp" autocomplete="one-time-code" inputmode="text" maxlength="20" spellcheck="false" aria-describedby="dicaOtp">
+        <div id="dicaOtp" class="legend" style="margin-top:4px">6 dígitos do aplicativo autenticador (ou um código de recuperação).</div>
+      </div>
+      <div class="loginErro" id="loginErro" role="alert">Usuário, senha ou código incorretos.</div>
       <button type="submit" class="btn">Entrar</button>
     </form>
   </div>
@@ -154,7 +175,10 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
     <h1>Sistema de Evolução de Líderes</h1>
     <p>JR Telecom &middot; Acompanhamento comportamental e estratégico dos líderes de equipe de monitoramento</p>
   </div>
-  <button class="btn-logout no-print" onclick="logout()">Sair</button>
+  <div class="no-print" style="display:flex;gap:8px">
+    <button class="btn-logout" onclick="segAbrir(false)">Segurança</button>
+    <button class="btn-logout" onclick="logout()">Sair</button>
+  </div>
 </header>
 
 <main class="wrap" id="conteudo" tabindex="-1">
@@ -359,8 +383,15 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
   </div>
 </div>
 
+<div id="modalSeguranca" class="no-print">
+  <div class="segCaixa" role="dialog" aria-modal="true" aria-labelledby="segTitulo" tabindex="-1">
+    <div id="segConteudo"></div>
+  </div>
+</div>
+
 <div id="avisoConexao" role="alert">Não foi possível falar com o servidor. Verifique sua conexão com a internet e tente novamente.</div>
 
+<script src="qrcode.js"></script>
 <script>
 /* Escapa texto digitado antes de inserir em HTML via innerHTML — nunca confiar em texto
    vindo de nome/equipe/função/observação/etc. sem passar por aqui primeiro (proteção contra
@@ -445,6 +476,9 @@ let DB = null;
     const r = await original(entrada, opcoes);
     const url = typeof entrada === 'string' ? entrada : ((entrada && entrada.url) || '');
     if(r.status === 401 && url.startsWith('/api/') && !/^\/api\/(login|me|logout)/.test(url)) sessaoExpirou();
+    if(r.status === 403 && url.startsWith('/api/') && !/^\/api\/(2fa|minha-senha)/.test(url)){
+      r.clone().json().then(j => { if(j && j.codigo === '2fa_setup_required') location.reload(); }).catch(()=>{});
+    }
     return r;
   };
 })();
@@ -508,6 +542,28 @@ function mostrarApp(){
 function mostrarLoginTela(){
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
+  carregarConfigLogin();
+}
+/* O campo do código só aparece quando a verificação em 2 etapas está ativa. */
+async function carregarConfigLogin(){
+  try{
+    const r = await fetch('/api/login-config');
+    if(!r.ok) return;
+    const j = await r.json();
+    document.getElementById('campoOtp').style.display = j.otp ? 'block' : 'none';
+  }catch(e){}
+}
+/* Depois de autenticado: se o 2FA é obrigatório e ainda não foi ativado, abre só a tela de ativação. */
+async function entrarNoSistema(){
+  const m = await (await fetch('/api/me')).json();
+  if(!m.autenticado) return false;
+  if(m.precisaAtivar2fa){
+    document.getElementById('loginScreen').style.display='none';
+    segAbrir(true);
+    return true;
+  }
+  if(await carregarEstado()){ mostrarApp(); inicializarUI(); return true; }
+  return false;
 }
 async function logout(){
   await fetch('/api/logout', { method:'POST' }).catch(()=>{});
@@ -520,17 +576,19 @@ document.getElementById('formLogin').addEventListener('submit', async function(e
   e.preventDefault();
   const usuario=document.getElementById('loginUser').value.trim();
   const senha=document.getElementById('loginSenha').value;
+  const otp=document.getElementById('loginOtp').value.trim();
   const erroEl=document.getElementById('loginErro');
   const botao=this.querySelector('button[type=submit]');
   botao.disabled=true;
   try{
-    const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({usuario,senha}) });
+    const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(otp ? {usuario,senha,otp} : {usuario,senha}) });
     if(r.ok){
       erroEl.style.display='none';
-      if(await carregarEstado()){ mostrarApp(); inicializarUI(); document.getElementById('conteudo').focus({preventScroll:true}); }
+      document.getElementById('formLogin').reset();
+      if(await entrarNoSistema() && DB) document.getElementById('conteudo').focus({preventScroll:true});
     } else {
       const j = await r.json().catch(()=>({}));
-      erroEl.textContent = j.erro || 'Usuário ou senha incorretos.';
+      erroEl.textContent = j.erro || 'Usuário, senha ou código incorretos.';
       erroEl.style.display='block';
     }
   }catch(err){
@@ -540,6 +598,161 @@ document.getElementById('formLogin').addEventListener('submit', async function(e
     botao.disabled=false;
   }
 });
+
+/* ---------------- SEGURANÇA DA CONTA: verificação em 2 etapas, senha, sessões ---------------- */
+async function api(url, metodo, corpo){
+  const r = await fetch(url, { method: metodo || 'GET', headers: corpo ? {'Content-Type':'application/json'} : undefined, body: corpo ? JSON.stringify(corpo) : undefined });
+  const j = await r.json().catch(()=>({}));
+  return { ok:r.ok, status:r.status, j };
+}
+let __segForcado = false;     // modo obrigatório: sem botão de fechar até ativar o 2FA
+let __segCodigos = [];        // códigos de recuperação mostrados uma única vez
+function segMsg(texto, tipo){
+  const el = document.getElementById('segMsg');
+  if(!el) return;
+  el.className = 'segMsg' + (tipo ? ' '+tipo : '');
+  el.textContent = texto || '';
+}
+function segRender(html){
+  const c = document.getElementById('segConteudo');
+  c.innerHTML = html;
+  const t = document.getElementById('segTitulo');
+  if(t) t.focus();
+}
+function segAbrir(forcado){
+  __segForcado = !!forcado;
+  window.__focoAntesSeg = document.activeElement;
+  document.getElementById('modalSeguranca').classList.add('aberto');
+  document.getElementById('app').inert = true;
+  if(__segForcado) segIniciarAtivacao(); else segMostrarStatus();
+}
+function segFechar(){
+  if(__segForcado) return;
+  __segCodigos = [];
+  document.getElementById('modalSeguranca').classList.remove('aberto');
+  document.getElementById('app').inert = false;
+  const voltar = window.__focoAntesSeg;
+  if(voltar && document.contains(voltar)) voltar.focus();
+}
+function segConcluirObrigatorio(){ __segCodigos = []; location.reload(); }
+function segSairForcado(){ document.getElementById('modalSeguranca').classList.remove('aberto'); __segForcado = false; logout(); }
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && document.getElementById('modalSeguranca').classList.contains('aberto')) segFechar();
+});
+const SEG_INPUT_CODIGO = 'inputmode="text" autocomplete="one-time-code" maxlength="20" spellcheck="false"';
+async function segMostrarStatus(aviso){
+  const r = await api('/api/2fa/status');
+  if(!r.ok){ segRender('<h2 id="segTitulo" tabindex="-1">Segurança da conta</h2><div class="segMsg erro" id="segMsg" role="alert">'+esc(r.j.erro || 'Não foi possível carregar.')+'</div><div class="acoes"><button class="btn-sec" onclick="segFechar()">Fechar</button></div>'); return; }
+  const s = r.j;
+  let h = '<h2 id="segTitulo" tabindex="-1">Segurança da conta</h2>';
+  h += '<div class="segBloco"><h3>Verificação em 2 etapas</h3>';
+  if(s.ativo){
+    h += '<p class="legend">Ativa. Ao entrar, além da senha você digita o código de 6 dígitos do aplicativo. Códigos de recuperação restantes: <strong>'+esc(s.codigosRestantes)+'</strong>.</p>';
+    h += '<label for="segNovosCodigo">Código atual do aplicativo</label><input id="segNovosCodigo" '+SEG_INPUT_CODIGO+'>';
+    h += '<div class="acoes"><button class="btn-sec" onclick="segNovosCodigos()">Gerar novos códigos de recuperação</button></div>';
+    if(!s.obrigatorio){
+      h += '<h3 style="margin-top:18px">Desativar</h3><label for="segDesSenha">Senha</label><input id="segDesSenha" type="password" autocomplete="current-password">';
+      h += '<label for="segDesCodigo" style="margin-top:8px">Código atual do aplicativo</label><input id="segDesCodigo" '+SEG_INPUT_CODIGO+'>';
+      h += '<div class="acoes"><button class="btn-del" onclick="segDesativar()">Desativar verificação em 2 etapas</button></div>';
+    } else {
+      h += '<p class="legend">A verificação em 2 etapas é obrigatória neste sistema.</p>';
+    }
+  } else if(!s.chaveConfigurada){
+    h += '<p class="legend">Ainda não disponível: a chave de criptografia do servidor não está configurada.</p>';
+  } else {
+    h += '<p class="legend">Desativada. Ative para proteger o acesso com um código do aplicativo autenticador (Google Authenticator, Microsoft Authenticator ou Authy).</p>';
+    h += '<div class="acoes"><button class="btn" onclick="segIniciarAtivacao()">Ativar verificação em 2 etapas</button></div>';
+  }
+  h += '</div>';
+  h += '<div class="segBloco"><h3>Trocar minha senha</h3>';
+  h += '<label for="segSenhaAtual">Senha atual</label><input id="segSenhaAtual" type="password" autocomplete="current-password">';
+  h += '<label for="segSenhaNova" style="margin-top:8px">Nova senha (mínimo 12 caracteres, com letras e números)</label><input id="segSenhaNova" type="password" autocomplete="new-password">';
+  if(s.ativo) h += '<label for="segSenhaCodigo" style="margin-top:8px">Código atual do aplicativo</label><input id="segSenhaCodigo" '+SEG_INPUT_CODIGO+'>';
+  h += '<div class="acoes"><button class="btn-sec" onclick="segTrocarSenha('+(s.ativo?'true':'false')+')">Trocar senha</button></div></div>';
+  h += '<div class="segBloco"><h3>Outros aparelhos</h3><p class="legend">Encerra o acesso em todos os outros navegadores e aparelhos onde você entrou. Esta sessão continua.</p>';
+  h += '<div class="acoes"><button class="btn-sec" onclick="segSairDeTodos()">Sair de todos os outros aparelhos</button></div></div>';
+  h += '<div class="segMsg'+(aviso?' ok':'')+'" id="segMsg" role="alert">'+esc(aviso||'')+'</div>';
+  h += '<div class="acoes" style="margin-top:14px"><button class="btn-sec" onclick="segFechar()">Fechar</button></div>';
+  segRender(h);
+}
+async function segIniciarAtivacao(){
+  const r = await api('/api/2fa/iniciar', 'POST', {});
+  if(!r.ok){
+    segRender('<h2 id="segTitulo" tabindex="-1">Ativar verificação em 2 etapas</h2><div class="segMsg erro" id="segMsg" role="alert">'+esc(r.j.erro || 'Não foi possível iniciar.')+'</div><div class="acoes">'+
+      (__segForcado ? '<button class="btn-sec" onclick="segSairForcado()">Sair</button>' : '<button class="btn-sec" onclick="segMostrarStatus()">Voltar</button>')+'</div>');
+    return;
+  }
+  let svg = '';
+  try{ const q = qrcode(0, 'M'); q.addData(r.j.uri); q.make(); svg = q.createSvgTag({ cellSize:5, margin:2, scalable:true }); }catch(e){ svg = ''; }
+  let h = '<h2 id="segTitulo" tabindex="-1">Ativar verificação em 2 etapas</h2>';
+  if(__segForcado) h += '<p class="legend"><strong>A verificação em 2 etapas é obrigatória.</strong> Ative agora para continuar usando o sistema.</p>';
+  h += '<ol class="segPassos"><li>Instale no celular o <strong>Google Authenticator</strong>, <strong>Microsoft Authenticator</strong> ou <strong>Authy</strong>.</li>';
+  h += '<li>No aplicativo, adicione uma conta e escaneie o QR Code abaixo.</li>';
+  h += '<li>Digite aqui o código de 6 dígitos que o aplicativo mostrar.</li></ol>';
+  h += '<div class="segQr" role="img" aria-label="QR Code para o aplicativo autenticador">'+svg+'</div>';
+  h += '<p class="legend">Sem câmera? Digite esta chave no aplicativo (tipo "baseada em tempo"):<br><code class="segChave">'+esc((r.j.segredo||'').replace(/(.{4})/g,'$1 ').trim())+'</code></p>';
+  h += '<label for="segCodigo">Código de 6 dígitos</label><input id="segCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="8" spellcheck="false">';
+  h += '<div class="segMsg" id="segMsg" role="alert"></div>';
+  h += '<div class="acoes"><button class="btn" onclick="segConfirmar(this)">Confirmar e ativar</button>'+
+    (__segForcado ? '<button class="btn-sec" onclick="segSairForcado()">Sair</button>' : '<button class="btn-sec" onclick="segMostrarStatus()">Cancelar</button>')+'</div>';
+  segRender(h);
+}
+async function segConfirmar(botao){
+  const codigo = document.getElementById('segCodigo').value;
+  botao.disabled = true;
+  try{
+    const r = await api('/api/2fa/confirmar', 'POST', { codigo });
+    if(r.ok){ __segCodigos = r.j.codigosRecuperacao || []; segMostrarCodigos(true); return; }
+    segMsg(r.j.erro || 'Não foi possível ativar.', 'erro');
+  }catch(e){ segMsg('Não foi possível falar com o servidor.', 'erro'); }
+  botao.disabled = false;
+}
+function segMostrarCodigos(recemAtivado){
+  let h = '<h2 id="segTitulo" tabindex="-1">Códigos de recuperação</h2>';
+  h += '<p class="legend">'+(recemAtivado ? '<strong>Verificação em 2 etapas ativada.</strong> ' : '')+'Se você perder o celular, cada código abaixo entra <strong>uma única vez</strong> no lugar do código do aplicativo. Guarde-os em local seguro (gerenciador de senhas ou impressos). <strong>Eles não serão mostrados de novo.</strong></p>';
+  h += '<ul class="segCodigos" id="segLista">'+__segCodigos.map(c=>'<li>'+esc(c)+'</li>').join('')+'</ul>';
+  h += '<div class="acoes"><button class="btn-sec" onclick="segCopiarCodigos()">Copiar</button><button class="btn-sec" onclick="segBaixarCodigos()">Baixar .txt</button></div>';
+  h += '<label style="display:flex;gap:8px;align-items:center;margin-top:14px;font-weight:600"><input type="checkbox" id="segGuardei" style="width:auto" onchange="document.getElementById(\'segConcluir\').disabled=!this.checked"> Guardei os códigos em local seguro</label>';
+  h += '<div class="segMsg" id="segMsg" role="alert"></div>';
+  h += '<div class="acoes"><button class="btn" id="segConcluir" disabled onclick="'+(__segForcado ? 'segConcluirObrigatorio()' : 'segConcluirCodigos()')+'">Concluir</button></div>';
+  segRender(h);
+}
+function segConcluirCodigos(){ __segCodigos = []; segMostrarStatus('Códigos guardados.'); }
+async function segCopiarCodigos(){
+  try{ await navigator.clipboard.writeText(__segCodigos.join('\n')); segMsg('Códigos copiados.', 'ok'); }
+  catch(e){ segMsg('Não foi possível copiar. Selecione os códigos e copie manualmente.', 'erro'); }
+}
+function segBaixarCodigos(){
+  const texto = 'Códigos de recuperação — Sistema de Evolução de Líderes (JR Telecom)\nCada código vale uma única vez. Guarde em local seguro.\n\n'+__segCodigos.join('\n')+'\n';
+  const url = URL.createObjectURL(new Blob([texto], { type:'text/plain;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = 'codigos-recuperacao-jr-telecom.txt';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+async function segNovosCodigos(){
+  const r = await api('/api/2fa/codigos-recuperacao', 'POST', { codigo: document.getElementById('segNovosCodigo').value });
+  if(r.ok){ __segCodigos = r.j.codigosRecuperacao || []; segMostrarCodigos(false); return; }
+  segMsg(r.j.erro || 'Não foi possível gerar os códigos.', 'erro');
+}
+async function segDesativar(){
+  if(!confirm('Desativar a verificação em 2 etapas? O acesso ficará protegido só pela senha.')) return;
+  const r = await api('/api/2fa/desativar', 'POST', { senha: document.getElementById('segDesSenha').value, codigo: document.getElementById('segDesCodigo').value });
+  if(r.ok){ segMostrarStatus('Verificação em 2 etapas desativada.'); return; }
+  segMsg(r.j.erro || 'Não foi possível desativar.', 'erro');
+}
+async function segTrocarSenha(temCodigo){
+  const corpo = { senha_atual: document.getElementById('segSenhaAtual').value, nova_senha: document.getElementById('segSenhaNova').value };
+  if(temCodigo) corpo.codigo = document.getElementById('segSenhaCodigo').value;
+  const r = await api('/api/minha-senha', 'POST', corpo);
+  if(r.ok){ segMostrarStatus('Senha trocada. Os outros aparelhos foram desconectados.'); return; }
+  segMsg(r.j.erro || 'Não foi possível trocar a senha.', 'erro');
+}
+async function segSairDeTodos(){
+  if(!confirm('Encerrar o acesso em todos os outros aparelhos?')) return;
+  const r = await api('/api/logout-todos', 'POST', {});
+  if(r.ok){ segMostrarStatus('Pronto. Sessões encerradas em outros aparelhos: '+(r.j.encerradas||0)+'.'); return; }
+  segMsg(r.j.erro || 'Não foi possível encerrar as sessões.', 'erro');
+}
 
 /* ---------------- ABAS ---------------- */
 document.querySelectorAll('.tab').forEach((b,i,todas)=>{ b.onkeydown=e=>{
@@ -1381,10 +1594,8 @@ function inicializarUI(){
 }
 async function boot(){
   try{
-    const r = await fetch('/api/me');
-    const j = await r.json();
-    if(j.autenticado && await carregarEstado()){
-      mostrarApp(); inicializarUI();
+    if(await entrarNoSistema()){
+      /* entrou (ou abriu a ativação obrigatória do 2FA) */
     } else {
       mostrarLoginTela();
       document.getElementById('loginUser').focus();
