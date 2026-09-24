@@ -448,16 +448,67 @@ function pct(n){ return (+(n||0)).toFixed(2).replace('.',',')+'%'; }
 /* ---------------- ESTADO (agora vem do backend, não mais do localStorage) ---------------- */
 let DB = null;
 
+/* Sessão expirada/revogada (401 em qualquer chamada da API, exceto login/me/logout): volta à tela de login
+   com um aviso claro, em vez de parecer que "o servidor caiu". */
+(function(){
+  const original = window.fetch.bind(window);
+  window.fetch = async function(entrada, opcoes){
+    const r = await original(entrada, opcoes);
+    const url = typeof entrada === 'string' ? entrada : ((entrada && entrada.url) || '');
+    if(r.status === 401 && url.startsWith('/api/') && !/^\/api\/(login|me|logout)/.test(url)) sessaoExpirou();
+    return r;
+  };
+})();
+function sessaoExpirou(){
+  if(!DB) return;
+  DB = null;
+  document.getElementById('modalDemonstrativo').classList.remove('aberto');
+  document.getElementById('app').inert = false;
+  mostrarLoginTela();
+  const el = document.getElementById('loginErro');
+  el.textContent = 'Sua sessão expirou. Entre novamente — a última alteração pode não ter sido salva.';
+  el.style.display = 'block';
+  document.getElementById('loginUser').focus();
+}
+
 async function carregarEstado(){
   const r = await fetch('/api/estado');
   if(r.status===401) return false;
   DB = await r.json();
   return true;
 }
-function salvar(){
-  fetch('/api/estado', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(DB) })
-    .then(r=>{ if(!r.ok) throw 0; document.getElementById('avisoConexao').style.display='none'; })
-    .catch(()=>{ document.getElementById('avisoConexao').style.display='block'; });
+/* Salvamento em fila (um por vez, sempre com o estado mais recente) e com a versão em que os dados se baseiam:
+   se outro aparelho/aba salvou antes, o servidor recusa (409) em vez de sobrescrever dados mais novos. */
+let __filaSalvar = Promise.resolve();
+let __permitirReducao = false;
+function salvar(opcoes){
+  if(opcoes && opcoes.permitirReducao) __permitirReducao = true;
+  __filaSalvar = __filaSalvar.then(enviarEstado).catch(()=>{});
+  return __filaSalvar;
+}
+function mostrarAviso(msg){
+  const el = document.getElementById('avisoConexao');
+  if(msg){ el.textContent = msg; el.style.display = 'block'; } else { el.style.display = 'none'; }
+}
+async function enviarEstado(){
+  if(!DB) return;
+  const permitirReducao = __permitirReducao;
+  __permitirReducao = false;
+  try{
+    const r = await fetch('/api/estado', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign({}, DB, { baseVersao: DB.versao, permitirReducao })) });
+    const j = await r.json().catch(()=>({}));
+    if(r.ok){ DB.versao = j.versao; mostrarAviso(''); return; }
+    if(r.status === 401) return;
+    if(r.status === 409 || r.status === 422){
+      alert((j.erro || 'Os dados mudaram em outro lugar.') + '\n\nA página será recarregada com a versão mais recente.');
+      location.reload();
+      return;
+    }
+    mostrarAviso(j.erro || 'Não foi possível salvar. Verifique sua conexão e tente novamente.');
+  }catch(e){
+    mostrarAviso('Não foi possível falar com o servidor. Verifique sua conexão com a internet e tente novamente.');
+  }
 }
 
 /* ---------------- LOGIN ---------------- */
@@ -487,7 +538,7 @@ document.getElementById('formLogin').addEventListener('submit', async function(e
     const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({usuario,senha}) });
     if(r.ok){
       erroEl.style.display='none';
-      if(await carregarEstado()){ mostrarApp(); inicializarUI(); }
+      if(await carregarEstado()){ mostrarApp(); inicializarUI(); document.getElementById('conteudo').focus({preventScroll:true}); }
     } else {
       const j = await r.json().catch(()=>({}));
       erroEl.textContent = j.erro || 'Usuário ou senha incorretos.';
@@ -530,7 +581,7 @@ function avatarHTML(l, tam){
 function enviarFotoLider(id, input){
   const arquivo = input.files[0]; if(!arquivo) return;
   if(!arquivo.type.startsWith('image/')){ alert('Selecione um arquivo de imagem.'); input.value=''; return; }
-  if(arquivo.size > 8*1024*1024){ alert('Imagem maior que 8MB — escolha uma menor.'); input.value=''; return; }
+  if(arquivo.size > 3*1024*1024){ alert('Imagem maior que 3MB — escolha uma menor.'); input.value=''; return; }
   const leitor = new FileReader();
   leitor.onload = async e => {
     try{
@@ -566,7 +617,7 @@ function removerLider(id){
   Object.keys(DB.aval).forEach(k=>{ if(k.startsWith(id+'|')) delete DB.aval[k]; });
   Object.keys(DB.sem).forEach(k=>{ if(k.startsWith(id+'|')) delete DB.sem[k]; });
   Object.keys(DB.pdi||{}).forEach(k=>{ if(k.startsWith(id+'|')) delete DB.pdi[k]; });
-  salvar(); renderLideres(); preencherSelects(); renderPainel();
+  salvar({permitirReducao:true}); renderLideres(); preencherSelects(); renderPainel();
 }
 function renderLideres(){
   const el=document.getElementById('listaLideres');
@@ -1325,7 +1376,8 @@ function importar(inp){
   r.onload=e=>{ try{ const d=JSON.parse(e.target.result);
     if(!d.lideres) throw 0;
     if(!confirm('Isso vai substituir TODOS os dados atuais do sistema pelos do arquivo. Continuar?')) return;
-    DB=d; salvar(); renderLideres(); preencherSelects(); renderPainel(); alert('Backup importado.');
+    d.versao = DB.versao;
+    DB=d; salvar({permitirReducao:true}); renderLideres(); preencherSelects(); renderPainel(); alert('Backup importado.');
   }catch(x){ alert('Arquivo inválido.'); } };
   r.readAsText(f);
 }
