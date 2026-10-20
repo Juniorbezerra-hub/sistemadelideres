@@ -23,7 +23,7 @@ header p{margin:4px 0 0;font-size:13px;max-width:62%}
 :focus-visible{outline:3px solid var(--azul);outline-offset:2px}
 header :focus-visible{outline-color:#fff;box-shadow:0 0 0 5px rgba(0,8,110,.9)}
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important;scroll-behavior:auto!important} }
-[role=region][tabindex]{overflow-x:auto}
+[role=region][tabindex]{overflow-x:auto;position:relative}
 .wrap{max-width:1180px;margin:0 auto;padding:18px 24px 60px}
 .tabs{display:flex;gap:4px;border-bottom:2px solid var(--borda);margin-bottom:18px;flex-wrap:wrap}
 .tab{padding:10px 16px;cursor:pointer;border:none;background:none;font-size:14px;font-weight:600;color:var(--cinza);border-bottom:3px solid transparent;margin-bottom:-2px}
@@ -114,7 +114,8 @@ tr:hover td{background:#fafcfe}
 .loginErro{color:var(--verm);font-size:12px;margin-top:10px;display:none}
 .btn-logout{background:rgba(0,8,110,.55);border:1px solid rgba(255,255,255,.7);color:#fff;padding:6px 12px;font-size:12px;border-radius:5px}
 .btn-logout:hover{background:rgba(0,8,110,.85)}
-header{display:flex;justify-content:space-between;align-items:center;gap:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+@media (max-width:600px){header p{max-width:100%}}
 #modalSeguranca{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1600;display:none;align-items:center;justify-content:center;padding:20px}
 #modalSeguranca.aberto{display:flex}
 .segCaixa{background:#fff;border-radius:10px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
@@ -125,6 +126,16 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
 .segMsg{font-size:13px;margin-top:10px}
 .segMsg.erro{color:var(--verm)}
 .segMsg.ok{color:var(--verde)}
+.quemSou{align-self:center;color:#fff;font-size:12px;font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.permGrupo{border:1px solid var(--borda);border-radius:6px;padding:10px 12px;margin:0;min-width:0}
+.permGrupo legend{font-size:12px;font-weight:700;color:var(--cinza);padding:0 6px}
+.permLista{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 14px}
+.permLista label{display:flex;gap:8px;align-items:center;font-weight:500;font-size:13px;color:#1e2b38;margin:0}
+.permLista input[type=checkbox]{width:auto;flex:0 0 auto}
+.senhaGerada{background:#fff8e5;border:1px solid #e0c36b;border-radius:8px;padding:14px 16px;margin-bottom:16px}
+.senhaGerada p{margin:8px 0}
+.senhaGerada code{font-family:Consolas,monospace;font-size:17px;letter-spacing:1px;user-select:all;background:#fff;border:1px solid var(--borda);border-radius:5px;padding:3px 9px;word-break:break-all}
+.st-ativo{color:var(--verde);font-weight:700}.st-inativo{color:var(--verm);font-weight:700}
 #avisoConexao{position:fixed;left:0;right:0;bottom:0;background:var(--verm);color:#fff;text-align:center;padding:8px;font-size:13px;z-index:2000;display:none}
 </style>
 </head>
@@ -165,12 +176,14 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
     <p>JR Telecom &middot; Acompanhamento comportamental e estratégico dos líderes de equipe de monitoramento</p>
   </div>
   <div class="no-print" style="display:flex;gap:8px">
+    <span id="quemSou" class="quemSou"></span>
     <button class="btn-logout" onclick="segAbrir()">Segurança</button>
     <button class="btn-logout" onclick="logout()">Sair</button>
   </div>
 </header>
 
 <main class="wrap" id="conteudo" tabindex="-1">
+  <div class="aviso no-print" id="avisoLeitura" style="display:none">Seu acesso é <b>somente para visualização</b>: você pode consultar e gerar PDF, mas não alterar notas.</div>
   <div class="tabs" role="tablist" aria-label="Seções do sistema">
     <button class="tab on" data-t="painel" role="tab" id="tab-painel" aria-controls="t-painel" aria-selected="true">Painel</button>
     <button class="tab" data-t="avaliar" role="tab" id="tab-avaliar" aria-controls="t-avaliar" aria-selected="false" tabindex="-1">Avaliação Mensal</button>
@@ -178,6 +191,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
     <button class="tab" data-t="semanal" role="tab" id="tab-semanal" aria-controls="t-semanal" aria-selected="false" tabindex="-1">Check-in Semanal</button>
     <button class="tab" data-t="historico" role="tab" id="tab-historico" aria-controls="t-historico" aria-selected="false" tabindex="-1">Histórico &amp; Evolução</button>
     <button class="tab" data-t="lideres" role="tab" id="tab-lideres" aria-controls="t-lideres" aria-selected="false" tabindex="-1">Líderes</button>
+    <button class="tab" data-t="usuarios" role="tab" id="tab-usuarios" aria-controls="t-usuarios" aria-selected="false" tabindex="-1">Usuários</button>
     <button class="tab" data-t="criterios" role="tab" id="tab-criterios" aria-controls="t-criterios" aria-selected="false" tabindex="-1">Critérios</button>
     <button class="tab" data-t="geral" role="tab" id="tab-geral" aria-controls="t-geral" aria-selected="false" tabindex="-1">Relatório Geral</button>
   </div>
@@ -288,6 +302,20 @@ header{display:flex;justify-content:space-between;align-items:center;gap:16px}
         <button class="btn-sec" onclick="restaurarEquipe()">Restaurar lista de líderes</button>
         <input type="file" id="imp" accept=".json" style="display:none" onchange="importar(this)">
       </div>
+    </div>
+  </div>
+
+  <!-- ============ USUÁRIOS (só admin) ============ -->
+  <div class="tabpane" id="t-usuarios" role="tabpanel" aria-labelledby="tab-usuarios" style="display:none">
+    <div id="usuSenhaBox"></div>
+    <div class="card">
+      <h2 id="usuFormTitulo">Novo usuário</h2>
+      <p class="legend">Crie o acesso de um líder e escolha o que ele pode ver: <b>quais telas</b> e <b>quais líderes</b>. As permissões valem na hora e são aplicadas pelo servidor. A senha é gerada pelo sistema e mostrada uma única vez.</p>
+      <div id="usuForm"></div>
+    </div>
+    <div class="card">
+      <h2>Usuários cadastrados</h2>
+      <div id="listaUsuarios" role="region" tabindex="0" aria-label="Lista de usuários"></div>
     </div>
   </div>
 
@@ -483,6 +511,7 @@ async function carregarEstado(){
   const r = await fetch('/api/estado');
   if(r.status===401) return false;
   DB = await r.json();
+  guardarBase();
   return true;
 }
 /* Salvamento em fila (um por vez, sempre com o estado mais recente) e com a versão em que os dados se baseiam:
@@ -500,6 +529,7 @@ function mostrarAviso(msg){
 }
 async function enviarEstado(){
   if(!DB) return;
+  if(PERFIL && !PERFIL.admin) return enviarLancamentos();
   const permitirReducao = __permitirReducao;
   __permitirReducao = false;
   try{
@@ -531,12 +561,15 @@ function mostrarLoginTela(){
 async function entrarNoSistema(){
   const m = await (await fetch('/api/me')).json();
   if(!m.autenticado) return false;
-  if(await carregarEstado()){ mostrarApp(); inicializarUI(); return true; }
+  PERFIL = m;
+  if(await carregarEstado()){ mostrarApp(); inicializarUI(); aplicarPerfil(); return true; }
+  PERFIL = null;
   return false;
 }
 async function logout(){
   await fetch('/api/logout', { method:'POST' }).catch(()=>{});
-  DB=null;
+  DB=null; PERFIL=null; BASE=null; USUARIOS=[]; __usuSenhaTmp=null;
+  document.getElementById('usuSenhaBox').innerHTML=''; document.getElementById('usuForm').innerHTML='';
   mostrarLoginTela();
   document.getElementById('formLogin').reset();
   document.getElementById('loginUser').focus();
@@ -619,11 +652,210 @@ async function segSairDeTodos(){
   segMsg(r.j.erro || 'Não foi possível encerrar as sessões.', 'erro');
 }
 
+/* ---------------- PERFIL (quem entrou) E PERMISSÕES NA TELA ----------------
+   O servidor já entrega só os dados liberados; aqui a tela apenas esconde o que a pessoa não pode usar e trava os campos
+   de quem só visualiza. A segurança de verdade é a do servidor. */
+let PERFIL = null;
+let BASE = null;   // cópia dos dados como vieram do servidor — usuário comum envia só o que mudou em relação a ela
+function copiaProfunda(o){ return JSON.parse(JSON.stringify(o)); }
+function guardarBase(){
+  BASE = (PERFIL && !PERFIL.admin && DB) ? copiaProfunda({ aval: DB.aval || {}, pdi: DB.pdi || {}, sem: DB.sem || {} }) : null;
+}
+function difMapa(antigo, novo){
+  antigo = antigo || {}; novo = novo || {};
+  const d = {}; let mudou = false;
+  Object.keys(novo).forEach(i => { if(novo[i] !== antigo[i]){ d[i] = novo[i]; mudou = true; } });
+  Object.keys(antigo).forEach(i => { if(!(i in novo)){ d[i] = null; mudou = true; } });   // campo apagado
+  return mudou ? d : null;
+}
+/* Só o que o usuário alterou: notas campo a campo, textos que mudaram, ações do PDI e semanas do check-in. */
+function calcularLancamentos(){
+  const saida = { aval: {}, pdi: {}, sem: {} };
+  const ig = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  Object.keys(DB.aval || {}).forEach(k => {
+    const n = DB.aval[k], o = (BASE.aval || {})[k] || { notas: {}, auto: {} }, p = {};
+    const dn = difMapa(o.notas, n.notas); if(dn) p.notas = dn;
+    const da = difMapa(o.auto, n.auto); if(da) p.auto = da;
+    ['forte', 'melhorar', 'meta', 'obs'].forEach(c => { if((n[c] || '') !== (o[c] || '')) p[c] = n[c] || ''; });
+    if(Object.keys(p).length) saida.aval[k] = p;
+  });
+  Object.keys(DB.pdi || {}).forEach(k => {
+    const n = DB.pdi[k], o = (BASE.pdi || {})[k] || { notas: {}, auto: {} }, p = {};
+    const dn = difMapa(o.notas, n.notas); if(dn) p.notas = dn;
+    const da = difMapa(o.auto, n.auto); if(da) p.auto = da;
+    ['fortes', 'desenvolver', 'revisao', 'compromisso'].forEach(c => { if((n[c] || '') !== (o[c] || '')) p[c] = n[c] || ''; });
+    if(n.acoes && !ig(n.acoes, o.acoes)) p.acoes = n.acoes;
+    if(Object.keys(p).length) saida.pdi[k] = p;
+  });
+  Object.keys(DB.sem || {}).forEach(k => {
+    Object.keys(DB.sem[k]).forEach(s => {
+      if(!ig(DB.sem[k][s], ((BASE.sem || {})[k] || {})[s])){ saida.sem[k] = saida.sem[k] || {}; saida.sem[k][s] = DB.sem[k][s]; }
+    });
+  });
+  const vazio = !Object.keys(saida.aval).length && !Object.keys(saida.pdi).length && !Object.keys(saida.sem).length;
+  return vazio ? null : saida;
+}
+async function enviarLancamentos(){
+  if(!DB || !BASE || !PERFIL.podeLancar) return;
+  const envio = calcularLancamentos();
+  if(!envio) return;
+  const foto = copiaProfunda({ aval: DB.aval || {}, pdi: DB.pdi || {}, sem: DB.sem || {} });
+  try{
+    const r = await fetch('/api/lancamentos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(envio) });
+    const j = await r.json().catch(() => ({}));
+    if(r.ok){ BASE = foto; if(j.versao) DB.versao = j.versao; mostrarAviso(''); return; }
+    if(r.status === 401) return;
+    mostrarAviso(j.erro || 'Não foi possível salvar. Verifique sua conexão e tente novamente.');
+  }catch(e){
+    mostrarAviso('Não foi possível falar com o servidor. Verifique sua conexão com a internet e tente novamente.');
+  }
+}
+let __obsLeitura = null;
+function travarFormularios(){
+  if(__obsLeitura){ __obsLeitura.disconnect(); __obsLeitura = null; }
+  if(!PERFIL || PERFIL.podeLancar) return;
+  const ids = ['formAvaliacao', 'formPDI', 'formSemanal'];
+  const aplicar = () => ids.forEach(id => document.getElementById(id).querySelectorAll('input,textarea,select,.escala button').forEach(x => { x.disabled = true; }));
+  aplicar();
+  __obsLeitura = new MutationObserver(aplicar);
+  ids.forEach(id => __obsLeitura.observe(document.getElementById(id), { childList: true, subtree: true }));
+}
+function aplicarPerfil(){
+  const liberadas = new Set(PERFIL.telas);
+  let primeira = null;
+  document.querySelectorAll('.tab').forEach(b => {
+    const ok = PERFIL.admin || liberadas.has(b.dataset.t);
+    b.style.display = ok ? '' : 'none';
+    if(ok && !primeira) primeira = b;
+  });
+  document.getElementById('quemSou').textContent = PERFIL.admin ? 'Administrador' : PERFIL.nome;
+  document.getElementById('avisoLeitura').style.display = (!PERFIL.admin && !PERFIL.podeLancar) ? 'block' : 'none';
+  travarFormularios();
+  if(primeira) primeira.click();
+}
+
+/* ---------------- USUÁRIOS (só o administrador) ---------------- */
+const TELAS_USU = [['painel', 'Painel'], ['avaliar', 'Avaliação Mensal'], ['pdi', 'PDI'], ['semanal', 'Check-in Semanal'],
+  ['historico', 'Histórico & Evolução'], ['geral', 'Relatório Geral'], ['criterios', 'Critérios']];
+const ROTULO_TELA = Object.fromEntries(TELAS_USU);
+let USUARIOS = [];
+let __usuEditando = null;
+let __usuSenhaTmp = null;
+async function carregarUsuarios(){
+  const r = await api('/api/usuarios');
+  if(!r.ok){ document.getElementById('listaUsuarios').innerHTML = '<div class="aviso">' + esc(r.j.erro || 'Não foi possível carregar os usuários.') + '</div>'; return; }
+  USUARIOS = r.j;
+  renderListaUsuarios();
+  if(!document.getElementById('usuForm').innerHTML) usuAbrirForm(null);
+}
+function quando(iso){ return iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca'; }
+function renderListaUsuarios(){
+  const el = document.getElementById('listaUsuarios');
+  if(!USUARIOS.length){ el.innerHTML = '<div class="vazio">Nenhum usuário cadastrado ainda. Crie o primeiro acima.</div>'; return; }
+  const nomeLider = id => { const l = DB.lideres.find(x => x.id === id); return l ? l.nome : id; };
+  el.innerHTML = '<table><tr><th scope="col">Usuário</th><th scope="col">Telas</th><th scope="col">Líderes</th><th scope="col">Lança notas</th><th scope="col">Último acesso</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr>' +
+    USUARIOS.map(u => '<tr><td><b>' + esc(u.nome) + '</b><br><small>' + esc(u.usuario) + '</small></td>' +
+      '<td>' + esc(u.telas.map(t => ROTULO_TELA[t] || t).join(', ')) + '</td>' +
+      '<td>' + esc(u.lideres.map(nomeLider).join(', ')) + '</td>' +
+      '<td>' + (u.podeLancar ? 'Sim' : 'Não') + '</td><td>' + esc(quando(u.ultimoLogin)) + '</td>' +
+      '<td><span class="' + (u.ativo ? 'st-ativo' : 'st-inativo') + '">' + (u.ativo ? 'Ativo' : 'Desativado') + '</span></td>' +
+      '<td style="text-align:right;white-space:nowrap"><button class="btn-sec" style="padding:4px 10px;font-size:12px" onclick="usuEditar(\'' + esc(u.usuario) + '\')">Editar</button> ' +
+      '<button class="btn-sec" style="padding:4px 10px;font-size:12px" onclick="usuNovaSenha(\'' + esc(u.usuario) + '\')">Nova senha</button> ' +
+      '<button class="btn-del" onclick="usuAlternarAtivo(\'' + esc(u.usuario) + '\')">' + (u.ativo ? 'Desativar' : 'Reativar') + '</button></td></tr>').join('') + '</table>';
+}
+function usuAbrirForm(u){
+  __usuEditando = u ? u.usuario : null;
+  const telasSel = new Set(u ? u.telas : ['painel', 'historico']), lidSel = new Set(u ? u.lideres : []);
+  document.getElementById('usuFormTitulo').textContent = u ? 'Editar usuário' : 'Novo usuário';
+  let h = '<div class="row" style="align-items:flex-start"><div><label for="usuId">Usuário (para entrar)</label><input id="usuId" maxlength="40" autocomplete="off" spellcheck="false" ' +
+    (u ? 'value="' + esc(u.usuario) + '" disabled' : 'placeholder="ex.: maria.silva"') + ' aria-describedby="usuIdDica"><div id="usuIdDica" class="legend">Letras minúsculas, números, ponto, hífen ou sublinhado (3 a 40).</div></div>' +
+    '<div><label for="usuNome">Nome da pessoa</label><input id="usuNome" maxlength="120" autocomplete="off" value="' + esc(u ? u.nome : '') + '"></div></div>';
+  h += '<div class="row" style="margin-top:14px;align-items:stretch">';
+  h += '<div><fieldset class="permGrupo"><legend>Telas que pode ver</legend><div class="permLista">' +
+    TELAS_USU.map(t => '<label><input type="checkbox" name="usuTela" value="' + t[0] + '"' + (telasSel.has(t[0]) ? ' checked' : '') + '> ' + esc(t[1]) + '</label>').join('') + '</div></fieldset></div>';
+  h += '<div><fieldset class="permGrupo"><legend>Líderes que pode ver</legend>' +
+    '<div class="acoes" style="margin:0 0 8px"><button type="button" class="btn-sec" style="padding:4px 10px;font-size:12px" onclick="usuMarcarLideres(true)">Marcar todos</button>' +
+    '<button type="button" class="btn-sec" style="padding:4px 10px;font-size:12px" onclick="usuMarcarLideres(false)">Limpar</button></div><div class="permLista">' +
+    DB.lideres.map(l => '<label><input type="checkbox" name="usuLid" value="' + esc(l.id) + '"' + (lidSel.has(l.id) ? ' checked' : '') + '> ' + esc(l.nome) + '</label>').join('') + '</div></fieldset></div></div>';
+  h += '<div class="permLista" style="margin-top:14px"><label><input type="checkbox" id="usuLancar"' + (u && u.podeLancar ? ' checked' : '') + '> Pode lançar e alterar notas (nas telas de lançamento liberadas)</label>' +
+    (u ? '<label><input type="checkbox" id="usuAtivo"' + (u.ativo ? ' checked' : '') + '> Acesso ativo</label>' : '') + '</div>';
+  h += '<div class="segMsg" id="usuMsg" role="alert"></div>';
+  h += '<div class="acoes"><button class="btn" onclick="usuSalvar(this)">' + (u ? 'Salvar alterações' : 'Criar usuário') + '</button>' +
+    (u ? '<button class="btn-sec" onclick="usuAbrirForm(null)">Cancelar edição</button>' : '') + '</div>';
+  document.getElementById('usuForm').innerHTML = h;
+}
+function usuMarcarLideres(marcar){ document.querySelectorAll('input[name=usuLid]').forEach(i => { i.checked = marcar; }); }
+function usuMsg(texto, tipo){ const el = document.getElementById('usuMsg'); if(el){ el.className = 'segMsg' + (tipo ? ' ' + tipo : ''); el.textContent = texto || ''; } }
+function usuEditar(id){
+  const u = USUARIOS.find(x => x.usuario === id); if(!u) return;
+  usuAbrirForm(u);
+  document.getElementById('usuFormTitulo').scrollIntoView({ block: 'start' });
+  document.getElementById('usuNome').focus();
+}
+function usuMostrarSenha(titulo, usuario, senha){
+  __usuSenhaTmp = { usuario, senha };
+  document.getElementById('usuSenhaBox').innerHTML = '<div class="senhaGerada" role="alert"><strong>' + esc(titulo) + '</strong>' +
+    '<p>Usuário: <code>' + esc(usuario) + '</code> &nbsp; Senha: <code>' + esc(senha) + '</code></p>' +
+    '<p class="legend">Copie agora e repasse à pessoa por um canal seguro. Por segurança esta senha <b>não será mostrada de novo</b>; a pessoa pode trocá-la em Segurança &rarr; Trocar minha senha. Se perder, use "Nova senha".</p>' +
+    '<div class="acoes"><button class="btn-sec" onclick="usuCopiarSenha()">Copiar usuário e senha</button><button class="btn-sec" onclick="usuOcultarSenha()">Já copiei, ocultar</button></div>' +
+    '<div class="segMsg" id="usuCopiaMsg" role="status"></div></div>';
+  document.getElementById('usuSenhaBox').scrollIntoView({ block: 'start' });
+}
+async function usuCopiarSenha(){
+  if(!__usuSenhaTmp) return;
+  const el = document.getElementById('usuCopiaMsg');
+  try{ await navigator.clipboard.writeText('Usuário: ' + __usuSenhaTmp.usuario + '\nSenha: ' + __usuSenhaTmp.senha); el.className = 'segMsg ok'; el.textContent = 'Copiado.'; }
+  catch(e){ el.className = 'segMsg erro'; el.textContent = 'Não foi possível copiar. Selecione o texto e copie manualmente.'; }
+}
+function usuOcultarSenha(){ __usuSenhaTmp = null; document.getElementById('usuSenhaBox').innerHTML = ''; }
+async function usuSalvar(botao){
+  const corpo = {
+    nome: document.getElementById('usuNome').value,
+    telas: [...document.querySelectorAll('input[name=usuTela]:checked')].map(i => i.value),
+    lideres: [...document.querySelectorAll('input[name=usuLid]:checked')].map(i => i.value),
+    podeLancar: document.getElementById('usuLancar').checked
+  };
+  botao.disabled = true;
+  try{
+    let r;
+    if(__usuEditando){
+      corpo.ativo = document.getElementById('usuAtivo').checked;
+      r = await api('/api/usuarios/' + encodeURIComponent(__usuEditando), 'PUT', corpo);
+    }else{
+      corpo.usuario = document.getElementById('usuId').value.trim().toLowerCase();
+      r = await api('/api/usuarios', 'POST', corpo);
+    }
+    if(!r.ok){ usuMsg(r.j.erro || 'Não foi possível salvar.', 'erro'); return; }
+    const criou = !__usuEditando;
+    usuOcultarSenha();
+    if(criou) usuMostrarSenha('Usuário criado', r.j.usuario, r.j.senha);
+    await carregarUsuarios();
+    usuAbrirForm(null);
+    if(!criou) usuMsg('Alterações salvas.', 'ok');
+  }catch(e){ usuMsg('Não foi possível falar com o servidor.', 'erro'); }
+  finally{ botao.disabled = false; }
+}
+async function usuNovaSenha(id){
+  if(!confirm('Gerar uma nova senha para "' + id + '"? A senha atual deixa de valer e a pessoa será desconectada.')) return;
+  const r = await api('/api/usuarios/' + encodeURIComponent(id) + '/senha', 'POST', {});
+  if(!r.ok){ alert(r.j.erro || 'Não foi possível gerar a senha.'); return; }
+  usuMostrarSenha('Nova senha gerada', r.j.usuario, r.j.senha);
+}
+async function usuAlternarAtivo(id){
+  const u = USUARIOS.find(x => x.usuario === id); if(!u) return;
+  const desativar = u.ativo;
+  if(desativar && !confirm('Desativar o acesso de "' + u.nome + '"? Ela será desconectada agora. Nada é apagado e você pode reativar depois.')) return;
+  const r = await api('/api/usuarios/' + encodeURIComponent(id), 'PUT', { nome: u.nome, ativo: !u.ativo, telas: u.telas, lideres: u.lideres, podeLancar: u.podeLancar });
+  if(!r.ok){ alert(r.j.erro || 'Não foi possível alterar.'); return; }
+  await carregarUsuarios();
+}
+
 /* ---------------- ABAS ---------------- */
-document.querySelectorAll('.tab').forEach((b,i,todas)=>{ b.onkeydown=e=>{
+document.querySelectorAll('.tab').forEach(b=>{ b.onkeydown=e=>{
   const dir = e.key==='ArrowRight'?1 : e.key==='ArrowLeft'?-1 : e.key==='Home'?'ini' : e.key==='End'?'fim' : 0;
   if(!dir) return;
   e.preventDefault();
+  const todas = [...document.querySelectorAll('.tab')].filter(x=>x.style.display!=='none'), i = todas.indexOf(b);
   const alvo = dir==='ini'?todas[0] : dir==='fim'?todas[todas.length-1] : todas[(i+dir+todas.length)%todas.length];
   alvo.focus(); alvo.click();
 }; });
@@ -635,6 +867,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   if(b.dataset.t==='painel') renderPainel();
   if(b.dataset.t==='historico') renderHistorico();
   if(b.dataset.t==='geral') renderRelatorioGeral();
+  if(b.dataset.t==='usuarios') carregarUsuarios();
 });
 
 /* ---------------- LÍDERES ---------------- */
@@ -1058,7 +1291,7 @@ function confirmarGerarDemonstrativo(){
   const referencia = document.getElementById('demoReferenciaInput').value.trim();
   const dataIso = document.getElementById('demoDataInput').value;
   const observacao = document.getElementById('demoObsInput').value.trim();
-  if(funcao && funcao !== (l.funcao||'')){ l.funcao = funcao; salvar(); }
+  if(PERFIL && PERFIL.admin && funcao && funcao !== (l.funcao||'')){ l.funcao = funcao; salvar(); }
   const dataBR = dataIso ? isoParaBR(dataIso) : new Date().toLocaleDateString('pt-BR');
   document.getElementById('relatorioImpressao').innerHTML = corpoDemonstrativo(l, mes, d, {
     editavel:false, colaborador, unidade, funcao, referencia, data: dataBR, observacao

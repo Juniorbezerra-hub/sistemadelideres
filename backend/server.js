@@ -100,29 +100,42 @@ function sidDoToken(token){
   if(!crypto.timingSafeEqual(Buffer.from(assinatura), Buffer.from(esperada))) return null;
   return sid;
 }
-async function criarSessao(ip){
+async function criarSessao(ip, usuario){
   const sid = crypto.randomBytes(24).toString('base64url');
-  const { error } = await supabase.rpc('criar_sessao', { p_sid: sid, p_ttl_min: SESSAO_MAX_MIN, p_ip: ip });
+  const { error } = await supabase.rpc('criar_sessao_v2', { p_sid: sid, p_ttl_min: SESSAO_MAX_MIN, p_ip: ip, p_usuario: usuario });
   if(error) throw error;
   return sid+'.'+assinar(sid);
 }
-/* Devolve o sid se a sessão vale (não revogada, não expirada, não ociosa) ou null. */
+/* Devolve o perfil da sessão ({ sid, usuario, admin, nome, telas, lideres, podeLancar }) se ela vale
+   (não revogada, não expirada, não ociosa e — para usuário comum — conta ainda ativa) ou null. */
 async function sessaoValida(req){
   const sid = sidDoToken(lerCookies(req).sel_auth);
   if(!sid) return null;
-  const { data, error } = await supabase.rpc('validar_sessao', { p_sid: sid, p_idle_min: SESSAO_OCIOSA_MIN });
+  const { data, error } = await supabase.rpc('validar_sessao_v3', { p_sid: sid, p_idle_min: SESSAO_OCIOSA_MIN, p_admin: USUARIO });
   if(error) throw error;
-  return data === true ? sid : null;
+  if(!data || data.ok !== true) return null;
+  return { sid, usuario: data.usuario, admin: data.admin === true, nome: data.nome || data.usuario,
+    telas: data.telas || [], lideres: data.lideres || [], podeLancar: data.pode_lancar === true };
 }
 async function exigirLogin(req, res, next){
   try{
-    const sid = await sessaoValida(req);
-    if(sid){ req.sid = sid; return next(); }
+    const perfil = await sessaoValida(req);
+    if(perfil){ req.sid = perfil.sid; req.perfil = perfil; return next(); }
   }catch(e){
     console.error('Erro ao validar sessão:', e.message);
     return res.status(503).json({ erro: 'Serviço temporariamente indisponível. Tente novamente.' });
   }
   res.status(401).json({ erro: 'Não autenticado.' });
+}
+/* Rotas que só o administrador pode usar (cadastro, sincronização, fotos, salvamento completo, usuários). */
+function exigirAdmin(req, res, next){
+  exigirLogin(req, res, () => {
+    if(!req.perfil.admin){
+      auditar('acesso_negado', ipDoRequest(req), req.perfil.usuario+' '+req.method+' '+String(req.path).slice(0,60));
+      return res.status(403).json({ erro: 'Você não tem permissão para esta ação.' });
+    }
+    next();
+  });
 }
 async function auditar(evento, ip, detalhe){
   try{ await supabase.rpc('registrar_auditoria', { p_evento: evento, p_ip: ip || null, p_detalhe: detalhe || null }); }catch(e){}
@@ -152,6 +165,61 @@ async function verificarSenha(informada){
 }
 function verificarUsuario(informado){
   return iguais(String(informado == null ? '' : informado).slice(0,256), USUARIO);
+}
+
+/* ---------------- USUÁRIOS COMUNS (líderes) E PERMISSÕES ----------------
+   O administrador (ADMIN_USUARIO) continua fora da tabela `usuarios`. Cada usuário comum tem: telas liberadas, líderes
+   liberados (uma lista marcada um a um) e se pode lançar notas. O servidor aplica isso nos dados — esconder só na tela não basta. */
+const TELAS_VALIDAS = ['painel','avaliar','pdi','semanal','historico','geral','criterios'];
+const RE_USUARIO = /^[a-z0-9][a-z0-9._-]{2,39}$/;
+function normalizarUsuario(u){
+  const s = String(u == null ? '' : u).trim().toLowerCase();
+  return RE_USUARIO.test(s) ? s : null;
+}
+const HASH_FALSO = gerarHash(crypto.randomBytes(12).toString('hex'));   // gasta o mesmo tempo quando o usuário não existe
+async function carregarUsuario(id){
+  const { data, error } = await supabase.from('usuarios').select('*').eq('usuario', id).maybeSingle();
+  if(error) throw error;
+  return data;
+}
+function perfilPublico(u){
+  return { usuario: u.usuario, nome: u.nome, ativo: u.ativo, telas: u.telas || [], lideres: u.lideres || [], podeLancar: u.pode_lancar === true,
+    criadoEm: u.criado_em, ultimoLogin: u.ultimo_login };
+}
+function gerarSenhaForte(){
+  const L = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ', N = '23456789', c = [];
+  for(let i = 0; i < 14; i++) c.push(L[crypto.randomInt(L.length)]);
+  for(let i = 0; i < 4; i++) c.push(N[crypto.randomInt(N.length)]);
+  for(let i = c.length - 1; i > 0; i--){ const j = crypto.randomInt(i + 1); [c[i], c[j]] = [c[j], c[i]]; }
+  return c.join('');
+}
+/* Valida telas, líderes e "pode lançar" vindos do cadastro. Devolve { erro } ou { telas, lideres, podeLancar }. */
+async function validarPermissoes(b){
+  const telas = Array.isArray(b.telas) ? [...new Set(b.telas)] : null;
+  if(!telas || !telas.length || !telas.every(t => TELAS_VALIDAS.includes(t))) return { erro: 'Escolha ao menos uma tela para liberar.' };
+  const lids = Array.isArray(b.lideres) ? [...new Set(b.lideres)] : null;
+  if(!lids || !lids.length || lids.length > 200 || !lids.every(id => typeof id === 'string' && RE_ID.test(id))) return { erro: 'Escolha ao menos um líder que o usuário poderá ver.' };
+  const { data, error } = await supabase.from('lideres').select('id');
+  if(error) throw error;
+  const existentes = new Set((data || []).map(l => l.id));
+  if(!lids.every(id => existentes.has(id))) return { erro: 'Algum líder escolhido não existe mais. Recarregue a página.' };
+  if(typeof b.podeLancar !== 'boolean') return { erro: 'Informe se o usuário pode lançar notas.' };
+  if(b.podeLancar && !telas.some(t => ['avaliar','pdi','semanal'].includes(t))) return { erro: 'Para lançar notas, libere ao menos uma das telas: Avaliação Mensal, PDI ou Check-in Semanal.' };
+  return { telas, lideres: lids, podeLancar: b.podeLancar };
+}
+/* Dados que cada tela precisa (Painel, Histórico e Relatório Geral leem a avaliação; o Relatório Geral lê tudo). */
+const DADOS_POR_TELA = { aval: ['painel','avaliar','historico','geral'], pdi: ['pdi','geral'], sem: ['semanal','geral'] };
+function filtrarEstadoPara(estado, perfil){
+  if(perfil.admin) return estado;
+  const ids = new Set(perfil.lideres), telas = new Set(perfil.telas);
+  const recortar = (obj, chaveBloco) => {
+    const saida = {};
+    if(!DADOS_POR_TELA[chaveBloco].some(t => telas.has(t))) return saida;
+    for(const [k, v] of Object.entries(obj || {})) if(ids.has(k.split('|')[0])) saida[k] = v;
+    return saida;
+  };
+  return { lideres: estado.lideres.filter(l => ids.has(l.id)), aval: recortar(estado.aval, 'aval'), pdi: recortar(estado.pdi, 'pdi'),
+    sem: recortar(estado.sem, 'sem'), avalImportado: estado.avalImportado, pctV2: true, versao: estado.versao };
 }
 
 /* ---------------- VALIDAÇÃO DE ENTRADA ---------------- */
@@ -184,7 +252,11 @@ function validarEstado(d){
     if(l.foto != null && !/^uploads\/fotos\/[A-Za-z0-9_.-]{1,120}$/.test(l.foto)) return 'foto inválida';
     if(l.qtd != null && !/^[0-9]{0,6}(\.[0-9]+)?$/.test(String(l.qtd))) return 'quantidade inválida';
   }
-  const aval = d.aval == null ? {} : d.aval, pdi = d.pdi == null ? {} : d.pdi, sem = d.sem == null ? {} : d.sem;
+  return validarRegistros(d.aval == null ? {} : d.aval, d.pdi == null ? {} : d.pdi, d.sem == null ? {} : d.sem, ids);
+}
+/* Valida os blocos de avaliação, PDI e check-in contra o conjunto de ids de líderes permitido. Aceita blocos parciais
+   (nota null = limpar o campo): é usado no salvamento completo do admin e no salvamento por campo dos usuários comuns. */
+function validarRegistros(aval, pdi, sem, ids){
   if(!ehObj(aval) || !ehObj(pdi) || !ehObj(sem)) return 'estrutura inválida';
   if(Object.keys(aval).length > 5000 || Object.keys(pdi).length > 2000 || Object.keys(sem).length > 5000) return 'volume de dados acima do limite';
   for(const [k, v] of Object.entries(aval)){
@@ -409,28 +481,53 @@ app.use(express.json({ limit: '6mb' }));
 
 app.post('/api/login', async (req, res) => {
   const ip = ipDoRequest(req);
-  const chave = 'ip:'+ip;
+  const chaveIp = 'ip:'+ip;
   const bloqueadoAte = ate => {
     const seg = Math.max(1, Math.ceil((new Date(ate).getTime() - Date.now())/1000));
     res.setHeader('Retry-After', String(seg));
     return res.status(429).json({ erro: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.', segundos: seg });
   };
   try{
-    const { data: bloqueio, error: erroBloqueio } = await supabase.rpc('checar_bloqueio_login', { p_chave: chave });
-    if(erroBloqueio) throw erroBloqueio;
-    if(bloqueio) return bloqueadoAte(bloqueio);
-
     const { usuario, senha } = req.body || {};
-    const okUsuario = verificarUsuario(usuario), okSenha = await verificarSenha(senha);   // sempre os dois
-    if(okUsuario && okSenha){
-      const token = await criarSessao(ip);
-      await supabase.rpc('limpar_falhas_login', { p_chave: chave });
-      await auditar('login_ok', ip);
+    const ehAdmin = verificarUsuario(usuario);
+    const idComum = ehAdmin ? null : normalizarUsuario(usuario);
+    /* usuário comum: além do limite por IP há um limite por nome (conta ou não) — não revela quais nomes existem */
+    const chaveConta = idComum ? 'u:'+idComum : null;
+    for(const chave of [chaveIp, chaveConta]){
+      if(!chave) continue;
+      const { data: bloqueio, error } = await supabase.rpc('checar_bloqueio_login', { p_chave: chave });
+      if(error) throw error;
+      if(bloqueio) return bloqueadoAte(bloqueio);
+    }
+
+    let ok = false, quem = null;
+    if(ehAdmin){
+      ok = await verificarSenha(senha);
+      quem = USUARIO;
+    }else{
+      const linha = idComum ? await carregarUsuario(idComum) : null;
+      const okSenha = conferirScrypt(String(senha == null ? '' : senha).slice(0,256), linha && linha.senha_hash ? linha.senha_hash : HASH_FALSO);
+      ok = !!(linha && linha.ativo && okSenha);
+      quem = ok ? linha.usuario : null;
+    }
+    if(ok){
+      const token = await criarSessao(ip, quem);
+      await supabase.rpc('limpar_falhas_login', { p_chave: chaveIp });
+      if(chaveConta) await supabase.rpc('limpar_falhas_login', { p_chave: chaveConta });
+      if(!ehAdmin) await supabase.from('usuarios').update({ ultimo_login: new Date().toISOString() }).eq('usuario', quem);
+      await auditar('login_ok', ip, ehAdmin ? '' : quem);
       res.setHeader('Set-Cookie', montarSetCookie('sel_auth', token, SESSAO_MAX_MIN*60));
       return res.json({ ok:true });
     }
-    const { data: ate, error: erroFalha } = await supabase.rpc('registrar_falha_login', { p_chave: chave, p_max: 5, p_janela_min: 15, p_bloqueio_min: 15 });
+    let ate = null;
+    const { data: ateIp, error: erroFalha } = await supabase.rpc('registrar_falha_login', { p_chave: chaveIp, p_max: 5, p_janela_min: 15, p_bloqueio_min: 15 });
     if(erroFalha) throw erroFalha;
+    ate = ateIp;
+    if(chaveConta){
+      const { data: ateConta, error: erroConta } = await supabase.rpc('registrar_falha_login', { p_chave: chaveConta, p_max: 10, p_janela_min: 15, p_bloqueio_min: 15 });
+      if(erroConta) throw erroConta;
+      ate = ate || ateConta;
+    }
     await auditar('login_falha', ip, ate ? 'bloqueado' : '');
     if(ate) return bloqueadoAte(ate);
     res.status(401).json({ erro: 'Usuário ou senha incorretos.' });
@@ -452,30 +549,39 @@ app.post('/api/logout', async (req, res) => {
 });
 app.get('/api/me', async (req, res) => {
   try{
-    res.json({ autenticado: !!(await sessaoValida(req)) });
+    const p = await sessaoValida(req);
+    if(!p) return res.json({ autenticado:false });
+    res.json({ autenticado:true, usuario: p.usuario, nome: p.nome, admin: p.admin,
+      telas: p.admin ? TELAS_VALIDAS.concat(['lideres','usuarios']) : p.telas,
+      lideres: p.admin ? null : p.lideres, podeLancar: p.admin || p.podeLancar });
   }catch(e){
     console.error('Erro ao validar sessão:', e.message);
     res.status(503).json({ erro: 'Serviço temporariamente indisponível.' });
   }
 });
 
-/* ---- Segurança da conta: trocar a própria senha e sair dos outros aparelhos ---- */
+/* ---- Segurança da conta: cada pessoa troca a PRÓPRIA senha e sai dos PRÓPRIOS outros aparelhos ---- */
 const erro503 = res => res.status(503).json({ erro: 'Serviço temporariamente indisponível. Tente novamente.' });
-function senhaNovaInvalida(nova, atual){
+function senhaNovaInvalida(nova, atual, usuario){
   if(typeof nova !== 'string' || nova.length < 12) return 'A nova senha precisa ter pelo menos 12 caracteres.';
   if(nova.length > 200) return 'A nova senha é longa demais.';
   if(!/[A-Za-z]/.test(nova) || !/\d/.test(nova)) return 'Use letras e números na nova senha.';
   if(nova === atual) return 'A nova senha precisa ser diferente da atual.';
-  if(nova.toLowerCase().includes(String(USUARIO).toLowerCase())) return 'A senha não pode conter o nome de usuário.';
+  if(nova.toLowerCase().includes(String(usuario).toLowerCase())) return 'A senha não pode conter o nome de usuário.';
   return null;
 }
-/* Exige a senha atual. Encerra as outras sessões. Erros de senha atual contam no mesmo limite de tentativas do login. */
+async function conferirSenhaDe(perfil, senha){
+  if(perfil.admin) return verificarSenha(senha);
+  const linha = await carregarUsuario(perfil.usuario);
+  return conferirScrypt(String(senha == null ? '' : senha).slice(0,256), linha && linha.senha_hash ? linha.senha_hash : HASH_FALSO) && !!(linha && linha.ativo);
+}
+/* Exige a senha atual. Erros de senha atual contam no mesmo limite de tentativas do login. */
 app.post('/api/minha-senha', exigirLogin, async (req, res) => {
   try{
     const ip = ipDoRequest(req);
     const chave = 'ip:'+ip;
     const { senha_atual, nova_senha } = req.body || {};
-    const problema = senhaNovaInvalida(nova_senha, senha_atual);
+    const problema = senhaNovaInvalida(nova_senha, senha_atual, req.perfil.usuario);
     if(problema) return res.status(400).json({ erro: problema });
     const { data: bloqueio, error: e1 } = await supabase.rpc('checar_bloqueio_login', { p_chave: chave });
     if(e1) throw e1;
@@ -484,32 +590,98 @@ app.post('/api/minha-senha', exigirLogin, async (req, res) => {
       res.setHeader('Retry-After', String(seg));
       return res.status(429).json({ erro: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.', segundos: seg });
     }
-    if(!(await verificarSenha(senha_atual))){
+    if(!(await conferirSenhaDe(req.perfil, senha_atual))){
       await supabase.rpc('registrar_falha_login', { p_chave: chave, p_max: 5, p_janela_min: 15, p_bloqueio_min: 15 });
-      await auditar('senha_atual_incorreta', ip);
+      await auditar('senha_atual_incorreta', ip, req.perfil.usuario);
       return res.status(400).json({ erro: 'Senha atual incorreta.' });
     }
-    const { error } = await supabase.from('admin_credenciais').upsert({ usuario: USUARIO, senha_hash: gerarHash(nova_senha), atualizado_em: new Date().toISOString() });
+    const novoHash = gerarHash(nova_senha);
+    const { error } = req.perfil.admin
+      ? await supabase.from('admin_credenciais').upsert({ usuario: USUARIO, senha_hash: novoHash, atualizado_em: new Date().toISOString() })
+      : await supabase.from('usuarios').update({ senha_hash: novoHash, atualizado_em: new Date().toISOString() }).eq('usuario', req.perfil.usuario);
     if(error) throw error;
     await supabase.rpc('limpar_falhas_login', { p_chave: chave });
-    await supabase.rpc('revogar_outras_sessoes', { p_sid: req.sid });
-    await auditar('senha_trocada', ip);
+    await supabase.rpc('revogar_sessoes_usuario', { p_usuario: req.perfil.usuario, p_exceto: req.sid });
+    await auditar('senha_trocada', ip, req.perfil.usuario);
     res.json({ ok:true });
   }catch(e){ console.error('Erro minha-senha:', e.message); erro503(res); }
 });
-/* Sair de todos os aparelhos (mantém só esta sessão). */
+/* Sair de todos os outros aparelhos (mantém só esta sessão; não mexe nas sessões de outras pessoas). */
 app.post('/api/logout-todos', exigirLogin, async (req, res) => {
   try{
-    const { data, error } = await supabase.rpc('revogar_outras_sessoes', { p_sid: req.sid });
+    const { data, error } = await supabase.rpc('revogar_sessoes_usuario', { p_usuario: req.perfil.usuario, p_exceto: req.sid });
     if(error) throw error;
-    await auditar('logout_todos', ipDoRequest(req), String(data));
+    await auditar('logout_todos', ipDoRequest(req), req.perfil.usuario+' '+String(data));
     res.json({ ok:true, encerradas: data });
   }catch(e){ console.error('Erro logout-todos:', e.message); erro503(res); }
 });
 
+/* ---- Cadastro de usuários (só o administrador) ---- */
+app.get('/api/usuarios', exigirAdmin, async (req, res) => {
+  try{
+    const { data, error } = await supabase.from('usuarios').select('*').order('nome');
+    if(error) throw error;
+    res.json((data || []).map(perfilPublico));
+  }catch(e){ console.error('Erro ao listar usuários:', e.message); erro503(res); }
+});
+app.post('/api/usuarios', exigirAdmin, async (req, res) => {
+  try{
+    const b = req.body || {};
+    const id = normalizarUsuario(b.usuario);
+    if(!id) return res.status(400).json({ erro: 'Usuário inválido: use de 3 a 40 caracteres entre letras minúsculas, números, ponto, hífen ou sublinhado.' });
+    if(id === String(USUARIO).toLowerCase() || id === 'admin') return res.status(400).json({ erro: 'Esse nome de usuário é reservado.' });
+    const nome = typeof b.nome === 'string' ? b.nome.trim() : '';
+    if(!nome || !identOk(nome, 120)) return res.status(400).json({ erro: 'Informe o nome da pessoa (sem < ou >).' });
+    const p = await validarPermissoes(b);
+    if(p.erro) return res.status(400).json({ erro: p.erro });
+    if(await carregarUsuario(id)) return res.status(409).json({ erro: 'Já existe um usuário com esse nome.' });
+    const senha = gerarSenhaForte();
+    const { error } = await supabase.from('usuarios').insert({ usuario: id, nome, senha_hash: gerarHash(senha), telas: p.telas, lideres: p.lideres, pode_lancar: p.podeLancar });
+    if(error){
+      if(error.code === '23505') return res.status(409).json({ erro: 'Já existe um usuário com esse nome.' });
+      throw error;
+    }
+    await auditar('usuario_criado', ipDoRequest(req), id);
+    res.json({ ok:true, usuario: id, senha });
+  }catch(e){ console.error('Erro ao criar usuário:', e.message); erro503(res); }
+});
+app.put('/api/usuarios/:usuario', exigirAdmin, async (req, res) => {
+  try{
+    const id = normalizarUsuario(req.params.usuario);
+    if(!id) return res.status(400).json({ erro: 'Usuário inválido.' });
+    const atual = await carregarUsuario(id);
+    if(!atual) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+    const b = req.body || {};
+    const nome = typeof b.nome === 'string' ? b.nome.trim() : '';
+    if(!nome || !identOk(nome, 120)) return res.status(400).json({ erro: 'Informe o nome da pessoa (sem < ou >).' });
+    if(typeof b.ativo !== 'boolean') return res.status(400).json({ erro: 'Informe se o usuário está ativo.' });
+    const p = await validarPermissoes(b);
+    if(p.erro) return res.status(400).json({ erro: p.erro });
+    const { error } = await supabase.from('usuarios').update({ nome, ativo: b.ativo, telas: p.telas, lideres: p.lideres, pode_lancar: p.podeLancar, atualizado_em: new Date().toISOString() }).eq('usuario', id);
+    if(error) throw error;
+    if(!b.ativo) await supabase.rpc('revogar_sessoes_usuario', { p_usuario: id, p_exceto: null });
+    await auditar(b.ativo ? 'usuario_alterado' : 'usuario_desativado', ipDoRequest(req), id);
+    res.json({ ok:true });
+  }catch(e){ console.error('Erro ao alterar usuário:', e.message); erro503(res); }
+});
+/* Gera uma senha nova (mostrada uma única vez) e encerra as sessões da pessoa. */
+app.post('/api/usuarios/:usuario/senha', exigirAdmin, async (req, res) => {
+  try{
+    const id = normalizarUsuario(req.params.usuario);
+    if(!id || !(await carregarUsuario(id))) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+    const senha = gerarSenhaForte();
+    const { error } = await supabase.from('usuarios').update({ senha_hash: gerarHash(senha), atualizado_em: new Date().toISOString() }).eq('usuario', id);
+    if(error) throw error;
+    await supabase.rpc('revogar_sessoes_usuario', { p_usuario: id, p_exceto: null });
+    await supabase.rpc('limpar_falhas_login', { p_chave: 'u:'+id });
+    await auditar('usuario_senha_redefinida', ipDoRequest(req), id);
+    res.json({ ok:true, usuario: id, senha });
+  }catch(e){ console.error('Erro ao redefinir senha:', e.message); erro503(res); }
+});
+
 /* Lista padrão dos líderes (botão "Restaurar lista de líderes"). Fica aqui, atrás do login — antes estava embutida
    no HTML público e expunha nomes e equipes de funcionários a qualquer visitante. */
-app.get('/api/lideres-padrao', exigirLogin, async (req, res) => {
+app.get('/api/lideres-padrao', exigirAdmin, async (req, res) => {
   try{
     const { data, error } = await supabase.from('lideres_padrao').select('id,nome,equipe,qtd').order('nome');
     if(error) throw error;
@@ -522,7 +694,7 @@ app.get('/api/lideres-padrao', exigirLogin, async (req, res) => {
 
 app.get('/api/estado', exigirLogin, async (req, res) => {
   try{
-    res.json(await montarEstado());
+    res.json(filtrarEstadoPara(await montarEstado(), req.perfil));
   }catch(e){
     console.error('Erro ao ler estado:', e);
     res.status(500).json({ erro:'Erro ao ler dados do banco.' });
@@ -531,7 +703,47 @@ app.get('/api/estado', exigirLogin, async (req, res) => {
 /* Salvamento: valida a forma dos dados, exige a versão em que o cliente se baseou (evita que uma aba/aparelho
    desatualizado sobrescreva dados mais novos) e recusa reduções de registros sem confirmação explícita.
    O banco tira um snapshot antes de qualquer redução e a cada 10 min de uso. */
-app.post('/api/estado', exigirLogin, async (req, res) => {
+/* Lançamento por campo — usuário comum com permissão de lançar. Só entram avaliações/PDI/check-ins dos líderes e das telas
+   liberados para ele; o banco grava só os campos enviados (nunca apaga registros) e incrementa a versão. */
+app.post('/api/lancamentos', exigirLogin, async (req, res) => {
+  const ip = ipDoRequest(req), p = req.perfil;
+  if(p.admin) return res.status(400).json({ erro: 'O administrador salva pelo fluxo normal.' });
+  const negar = async (motivo) => { await auditar('lancamento_negado', ip, p.usuario+': '+motivo); return res.status(403).json({ erro: 'Você não tem permissão para lançar estas informações.' }); };
+  if(!p.podeLancar) return negar('sem permissão de lançar');
+  const d = req.body;
+  if(!ehObj(d)) return res.status(400).json({ erro: 'Dados inválidos.' });
+  const aval = d.aval == null ? {} : d.aval, pdi = d.pdi == null ? {} : d.pdi, sem = d.sem == null ? {} : d.sem;
+  if(!ehObj(aval) || !ehObj(pdi) || !ehObj(sem)) return res.status(400).json({ erro: 'Dados inválidos.' });
+  const total = Object.keys(aval).length + Object.keys(pdi).length + Object.keys(sem).length;
+  if(total === 0) return res.json({ ok:true, versao: null });
+  if(total > 200) return res.status(400).json({ erro: 'Dados demais de uma vez.' });
+  const ids = new Set(p.lideres), telas = new Set(p.telas);
+  if(Object.keys(aval).length && !telas.has('avaliar')) return negar('avaliação');
+  if(Object.keys(pdi).length && !telas.has('pdi')) return negar('PDI');
+  if(Object.keys(sem).length && !telas.has('semanal')) return negar('check-in');
+  for(const k of [...Object.keys(aval), ...Object.keys(pdi), ...Object.keys(sem)]){
+    if(!ids.has(String(k).split('|')[0])) return negar('líder fora da lista');
+  }
+  const erroValidacao = validarRegistros(aval, pdi, sem, ids);
+  if(erroValidacao){
+    await auditar('lancamento_rejeitado', ip, p.usuario+': '+erroValidacao);
+    return res.status(400).json({ erro: 'Dados inválidos: '+erroValidacao, codigo: 'payload_invalido' });
+  }
+  try{
+    const { data, error } = await supabase.rpc('salvar_parcial', { payload: { aval, pdi, sem } });
+    if(error){
+      if((error.message || '').includes('payload_invalido')) return res.status(400).json({ erro: 'Dados inválidos.', codigo: 'payload_invalido' });
+      throw error;
+    }
+    await auditar('lancamento', ip, p.usuario+' aval='+Object.keys(aval).length+' pdi='+Object.keys(pdi).length+' sem='+Object.keys(sem).length);
+    res.json({ ok:true, versao: data });
+  }catch(e){
+    console.error('Erro ao gravar lançamento:', e.message);
+    res.status(500).json({ erro: 'Erro ao salvar no banco de dados.' });
+  }
+});
+
+app.post('/api/estado', exigirAdmin, async (req, res) => {
   const ip = ipDoRequest(req);
   const d = req.body;
   const erroValidacao = validarEstado(d);
@@ -566,7 +778,7 @@ app.post('/api/estado', exigirLogin, async (req, res) => {
     res.status(500).json({ erro:'Erro ao salvar no banco de dados.' });
   }
 });
-app.post('/api/sincronizar-planilha', exigirLogin, async (req, res) => {
+app.post('/api/sincronizar-planilha', exigirAdmin, async (req, res) => {
   try{
     const r = await sincronizarPlanilhaMonitoramento();
     await supabase.from('meta').upsert({ chave:'ultima_sync', valor: new Date().toISOString() });
@@ -579,7 +791,7 @@ app.post('/api/sincronizar-planilha', exigirLogin, async (req, res) => {
   }
 });
 
-app.post('/api/lideres/:id/foto', exigirLogin, async (req, res) => {
+app.post('/api/lideres/:id/foto', exigirAdmin, async (req, res) => {
   const { id } = req.params;
   if(!RE_ID.test(id)) return res.status(400).json({ erro: 'Identificador inválido.' });
   const { data: lider } = await supabase.from('lideres').select('id').eq('id', id).maybeSingle();
@@ -606,7 +818,7 @@ app.post('/api/lideres/:id/foto', exigirLogin, async (req, res) => {
     res.status(500).json({ erro:'Erro ao salvar a foto.' });
   }
 });
-app.delete('/api/lideres/:id/foto', exigirLogin, async (req, res) => {
+app.delete('/api/lideres/:id/foto', exigirAdmin, async (req, res) => {
   const { id } = req.params;
   if(!RE_ID.test(id)) return res.status(400).json({ erro: 'Identificador inválido.' });
   try{
@@ -624,6 +836,11 @@ app.delete('/api/lideres/:id/foto', exigirLogin, async (req, res) => {
    (/uploads/fotos/<arquivo>) que o front-end já usa, só troca o disco local pelo bucket. */
 app.get('/uploads/fotos/:nome', exigirLogin, async (req, res) => {
   if(!/^[A-Za-z0-9_-]{1,60}\.(jpg|png|webp|gif)$/.test(req.params.nome)) return res.status(404).end();
+  if(!req.perfil.admin){
+    // usuário comum só vê a foto de um líder que lhe foi liberado
+    const { data: dono } = await supabase.from('lideres').select('id').eq('foto', 'uploads/fotos/'+req.params.nome).maybeSingle();
+    if(!dono || !req.perfil.lideres.includes(dono.id)) return res.status(404).end();
+  }
   const { data, error } = await supabase.storage.from(BUCKET_FOTOS).download(req.params.nome);
   if(error || !data) return res.status(404).end();
   const buffer = Buffer.from(await data.arrayBuffer());
